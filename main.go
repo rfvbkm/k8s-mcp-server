@@ -5,16 +5,31 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"k8s-mcp-server/pkg/k8s" // Import the k8s package
+	"k8s-mcp-server/pkg/k8s"
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle graceful shutdown
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		<-c
+		cancel()
+	}()
+
 	// MCP server
 	s := server.NewMCPServer(
 		"Kubernetes Tools",
@@ -31,131 +46,67 @@ func main() {
 		return
 	}
 
-	// Add a list_pods tool
-	listPodsTool := mcp.NewTool("list_pods",
-		mcp.WithDescription("List all pods in the cluster"),
-	)
+	// Utility function to add tools
+	addTool := func(name, description string, handler func(ctx context.Context) (string, error)) {
+		tool := mcp.NewTool(name, mcp.WithDescription(description))
+		s.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			result, err := handler(ctx)
+			if err != nil {
+				return nil, logAndReturnError(err, fmt.Sprintf("Failed to handle tool: %s", name))
+			}
+			return mcp.NewToolResultText(result), nil
+		})
+	}
 
-	// Add the list_pods handler
-	s.AddTool(listPodsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	// Add tools
+	addTool("list_pods", "List all pods in the cluster", func(ctx context.Context) (string, error) {
+		pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
 		if err != nil {
-			log.Printf("Failed to list pods: %v", err)
-			return nil, errors.New("Failed to list pods")
+			return "", err
 		}
-
-		podNames := ""
-		for _, pod := range pods.Items {
-			podNames += fmt.Sprintf("- %s/%s\n", pod.Namespace, pod.Name)
-		}
-
-		return mcp.NewToolResultText(podNames), nil
+		return formatResourceList(pods.Items, func(pod metav1.Object) string {
+			return fmt.Sprintf("- %s/%s", pod.GetNamespace(), pod.GetName())
+		}), nil
 	})
 
-	// Add a list_nodes tool
-	listNodesTool := mcp.NewTool("list_nodes",
-		mcp.WithDescription("List all nodes in the cluster"),
-	)
-
-	// Add the list_nodes handler
-	s.AddTool(listNodesTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	addTool("list_nodes", "List all nodes in the cluster", func(ctx context.Context) (string, error) {
+		nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 		if err != nil {
-			log.Printf("Failed to list nodes: %v", err)
-			return nil, errors.New("Failed to list nodes")
+			return "", err
 		}
-
-		nodeNames := ""
-		for _, node := range nodes.Items {
-			nodeNames += fmt.Sprintf("- %s\n", node.Name)
-		}
-
-		return mcp.NewToolResultText(nodeNames), nil
+		return formatResourceList(nodes.Items, func(node metav1.Object) string {
+			return fmt.Sprintf("- %s", node.GetName())
+		}), nil
 	})
 
-	// Add a list_namespaces tool
-	listNamespacesTool := mcp.NewTool("list_namespaces",
-		mcp.WithDescription("List all namespaces in the cluster"),
-	)
-
-	// Add the list_namespaces handler
-	s.AddTool(listNamespacesTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+	addTool("list_namespaces", "List all namespaces in the cluster", func(ctx context.Context) (string, error) {
+		namespaces, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 		if err != nil {
-			log.Printf("Failed to list namespaces: %v", err)
-			return nil, errors.New("Failed to list namespaces")
+			return "", err
 		}
-
-		namespaceNames := ""
-		for _, namespace := range namespaces.Items {
-			namespaceNames += fmt.Sprintf("- %s\n", namespace.Name)
-		}
-
-		return mcp.NewToolResultText(namespaceNames), nil
+		return formatResourceList(namespaces.Items, func(ns metav1.Object) string {
+			return fmt.Sprintf("- %s", ns.GetName())
+		}), nil
 	})
 
-	// Add a list_configmaps tool
-	listConfigMapsTool := mcp.NewTool("list_configmaps",
-		mcp.WithDescription("List all configmaps in the cluster"),
-	)
-
-	// Add the list_configmaps handler
-	s.AddTool(listConfigMapsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		configmaps, err := clientset.CoreV1().ConfigMaps("").List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			log.Printf("Failed to list configmaps: %v", err)
-			return nil, errors.New("Failed to list configmaps")
-		}
-
-		configmapNames := ""
-		for _, configmap := range configmaps.Items {
-			configmapNames += fmt.Sprintf("- %s/%s\n", configmap.Namespace, configmap.Name)
-		}
-
-		return mcp.NewToolResultText(configmapNames), nil
-	})
-
-	// Add a list_services tool
-	listServicesTool := mcp.NewTool("list_services",
-		mcp.WithDescription("List all services in the cluster"),
-	)
-
-	s.AddTool(listServicesTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		services, err := clientset.CoreV1().Services("").List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			log.Printf("Failed to list services: %v", err)
-			return nil, errors.New("Failed to list services")
-		}
-
-		serviceNames := ""
-		for _, service := range services.Items {
-			serviceNames += fmt.Sprintf("- %s/%s\n", service.Namespace, service.Name)
-		}
-
-		return mcp.NewToolResultText(serviceNames), nil
-	})
-
-	listIngressesTool := mcp.NewTool("list_ingresses",
-		mcp.WithDescription("List all ingresses in the cluster"),
-	)
-
-	s.AddTool(listIngressesTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		ingresses, err := clientset.NetworkingV1().Ingresses("").List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			log.Printf("Failed to list ingresses: %v", err)
-			return nil, errors.New("Failed to list ingresses")
-		}
-
-		ingressNames := ""
-		for _, ingress := range ingresses.Items {
-			ingressNames += fmt.Sprintf("- %s/%s\n", ingress.Namespace, ingress.Name)
-		}
-
-		return mcp.NewToolResultText(ingressNames), nil
-	})
+	// Add more tools as needed...
 
 	// Start the server
 	if err := server.ServeStdio(s); err != nil {
-		fmt.Printf("Server error: %v\n", err)
+		log.Fatalf("Server error: %v", err)
 	}
+}
+
+// Utility functions
+func logAndReturnError(err error, message string) error {
+	log.Printf("%s: %v", message, err)
+	return errors.New(message)
+}
+
+func formatResourceList(items []metav1.Object, formatFunc func(metav1.Object) string) string {
+	var builder strings.Builder
+	for _, item := range items {
+		builder.WriteString(formatFunc(item) + "\n")
+	}
+	return builder.String()
 }
