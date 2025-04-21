@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "k8s-api-server": {
-      "command": "/Users/rezagholizade/Documents/k8s-mcp-server/mcp-server",
-      "args": []
-    }
-    // Add other servers here if needed
-  }
-} 
