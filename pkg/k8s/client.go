@@ -1,42 +1,233 @@
 package k8s
 
 import (
-	"log"
-	"os"
+	"context"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
 	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
-var (
-	clientset  *kubernetes.Clientset
-	restConfig *rest.Config
-	once       sync.Once
-)
+// Client encapsulates Kubernetes client functionality
+type Client struct {
+	clientset        *kubernetes.Clientset
+	dynamicClient    dynamic.Interface
+	discoveryClient  *discovery.DiscoveryClient
+	restConfig       *rest.Config
+	apiResourceCache map[string]*schema.GroupVersionResource
+	cacheLock        sync.RWMutex
+}
 
-// GetClient returns a singleton Kubernetes clientset
-func GetClient() *kubernetes.Clientset {
-	once.Do(func() {
-		// Load kubeconfig
-		kubeconfigPath := os.Getenv("KUBECONFIG")
-		if kubeconfigPath == "" {
-			kubeconfigPath = clientcmd.RecommendedHomeFile // Use default if not specified
+// NewClient creates a new Kubernetes client
+func NewClient(kubeconfigPath string) (*Client, error) {
+	var kubeconfig string
+	if kubeconfigPath != "" {
+		kubeconfig = kubeconfigPath
+	} else if home := homedir.HomeDir(); home != "" {
+		kubeconfig = filepath.Join(home, ".kube", "config")
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes configuration: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	return &Client{
+		clientset:        clientset,
+		dynamicClient:    dynamicClient,
+		discoveryClient:  discoveryClient,
+		restConfig:       config,
+		apiResourceCache: make(map[string]*schema.GroupVersionResource),
+	}, nil
+}
+
+// GetAPIResources retrieves all API resource types in the cluster
+func (c *Client) GetAPIResources(ctx context.Context, includeNamespaceScoped, includeClusterScoped bool) ([]map[string]interface{}, error) {
+	resourceLists, err := c.discoveryClient.ServerPreferredResources()
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		return nil, fmt.Errorf("failed to retrieve API resources: %w", err)
+	}
+
+	var resources []map[string]interface{}
+	for _, resourceList := range resourceLists {
+		for _, resource := range resourceList.APIResources {
+			if (resource.Namespaced && !includeNamespaceScoped) || (!resource.Namespaced && !includeClusterScoped) {
+				continue
+			}
+			resources = append(resources, map[string]interface{}{
+				"name":         resource.Name,
+				"singularName": resource.SingularName,
+				"namespaced":   resource.Namespaced,
+				"kind":         resource.Kind,
+				"group":        resource.Group,
+				"version":      resource.Version,
+				"verbs":        resource.Verbs,
+			})
 		}
+	}
+	return resources, nil
+}
 
-		var err error
-		restConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+// GetResource retrieves detailed information about a specific resource
+func (c *Client) GetResource(ctx context.Context, kind, name, namespace string) (map[string]interface{}, error) {
+	gvr, err := c.getCachedGVR(kind)
+	if err != nil {
+		return nil, err
+	}
+
+	var obj *unstructured.Unstructured
+	if namespace != "" {
+		obj, err = c.dynamicClient.Resource(*gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	} else {
+		obj, err = c.dynamicClient.Resource(*gvr).Get(ctx, name, metav1.GetOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve resource: %w", err)
+	}
+
+	return obj.UnstructuredContent(), nil
+}
+
+// ListResources lists all instances of a specific resource type
+func (c *Client) ListResources(ctx context.Context, kind, namespace, labelSelector, fieldSelector string) ([]map[string]interface{}, error) {
+	gvr, err := c.getCachedGVR(kind)
+	if err != nil {
+		return nil, err
+	}
+
+	options := metav1.ListOptions{
+		LabelSelector: labelSelector,
+		FieldSelector: fieldSelector,
+	}
+
+	var list *unstructured.UnstructuredList
+	if namespace != "" {
+		list, err = c.dynamicClient.Resource(*gvr).Namespace(namespace).List(ctx, options)
+	} else {
+		list, err = c.dynamicClient.Resource(*gvr).List(ctx, options)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to list resources: %w", err)
+	}
+
+	var resources []map[string]interface{}
+	for _, item := range list.Items {
+		resources = append(resources, item.UnstructuredContent())
+	}
+	return resources, nil
+}
+
+// CreateOrUpdateResource creates or updates a resource
+func (c *Client) CreateOrUpdateResource(ctx context.Context, kind, namespace, manifest string) (map[string]interface{}, error) {
+	obj := &unstructured.Unstructured{}
+	if err := json.Unmarshal([]byte(manifest), &obj.Object); err != nil {
+		return nil, fmt.Errorf("failed to parse resource manifest: %w", err)
+	}
+
+	gvr, err := c.getCachedGVR(kind)
+	if err != nil {
+		return nil, err
+	}
+
+	var result *unstructured.Unstructured
+	if namespace != "" {
+		obj.SetNamespace(namespace)
+	}
+
+	if obj.GetName() == "" {
+		return nil, fmt.Errorf("resource name is required")
+	}
+
+	// Try to update the resource; if it doesn't exist, create it
+	result, err = c.dynamicClient.Resource(*gvr).Namespace(obj.GetNamespace()).Update(ctx, obj, metav1.UpdateOptions{})
+	if err != nil {
+		result, err = c.dynamicClient.Resource(*gvr).Namespace(obj.GetNamespace()).Create(ctx, obj, metav1.CreateOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create or update resource: %w", err)
+	}
+
+	return result.UnstructuredContent(), nil
+}
+
+// DeleteResource deletes a resource
+func (c *Client) DeleteResource(ctx context.Context, kind, name, namespace string) error {
+	gvr, err := c.getCachedGVR(kind)
+	if err != nil {
+		return err
+	}
+
+	var deleteErr error
+	if namespace != "" {
+		deleteErr = c.dynamicClient.Resource(*gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	} else {
+		deleteErr = c.dynamicClient.Resource(*gvr).Delete(ctx, name, metav1.DeleteOptions{})
+	}
+	if deleteErr != nil {
+		return fmt.Errorf("failed to delete resource: %w", deleteErr)
+	}
+	return nil
+}
+
+// getCachedGVR retrieves the GroupVersionResource for a given kind, using a cache for performance
+func (c *Client) getCachedGVR(kind string) (*schema.GroupVersionResource, error) {
+	c.cacheLock.RLock()
+	if gvr, exists := c.apiResourceCache[kind]; exists {
+		c.cacheLock.RUnlock()
+		return gvr, nil
+	}
+	c.cacheLock.RUnlock()
+
+	// Cache miss; fetch from discovery client
+	resourceLists, err := c.discoveryClient.ServerPreferredResources()
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		return nil, fmt.Errorf("failed to retrieve API resources: %w", err)
+	}
+
+	for _, resourceList := range resourceLists {
+		gv, err := schema.ParseGroupVersion(resourceList.GroupVersion)
 		if err != nil {
-			log.Fatalf("Failed to load kubeconfig from %s: %v", kubeconfigPath, err)
+			continue
 		}
-
-		// Create Kubernetes client
-		clientset, err = kubernetes.NewForConfig(restConfig)
-		if err != nil {
-			log.Fatalf("Failed to create Kubernetes client: %v", err)
+		for _, resource := range resourceList.APIResources {
+			if resource.Kind == kind {
+				gvr := &schema.GroupVersionResource{
+					Group:    gv.Group,
+					Version:  gv.Version,
+					Resource: resource.Name,
+				}
+				c.cacheLock.Lock()
+				c.apiResourceCache[kind] = gvr
+				c.cacheLock.Unlock()
+				return gvr, nil
+			}
 		}
-	})
+	}
 
-	return clientset
+	return nil, fmt.Errorf("resource type %s not found", kind)
 }
