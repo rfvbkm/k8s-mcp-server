@@ -109,8 +109,5 @@ To add a new tool:
 
 ## License
 
-[Add your license here]
+gholizade.net@gmail.com
 
-## Contributing
-
-[Add contribution guidelines here] 
