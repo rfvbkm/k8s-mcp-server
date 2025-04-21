@@ -11,7 +11,7 @@ A Kubernetes Model Control Plane (MCP) server that provides tools for interactin
 
 ## Prerequisites
 
-- Go 1.16 or later
+- Go 1.20 or later
 - Access to a Kubernetes cluster
 - `kubectl` configured with appropriate cluster access
 
@@ -19,7 +19,7 @@ A Kubernetes Model Control Plane (MCP) server that provides tools for interactin
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/k8s-mcp-server.git
+git clone https://github.com/reza-gholizade/k8s-mcp-server.git
 cd k8s-mcp-server
 ```
 
@@ -30,7 +30,7 @@ go mod download
 
 3. Build the server:
 ```bash
-go build
+go build -o k8s-mcp-server main.go
 ```
 
 ## Usage
