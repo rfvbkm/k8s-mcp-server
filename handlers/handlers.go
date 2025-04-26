@@ -11,7 +11,7 @@ import (
 )
 
 // and is registered with the mcp server.
-func CreateGetAPIResources() mcp.Tool {
+func GetAPIResourcesTool() mcp.Tool {
 	return mcp.NewTool(
 		"getAPIResources",
 		mcp.WithDescription("Get all API resources in the Kubernetes cluster\n"+
@@ -73,7 +73,7 @@ func GetAPIResources(client *k8s.Client) func(ctx context.Context, request mcp.C
 }
 
 // List all resources in the Kubernetes cluster of a specific type
-func CreateListResourcesTool() mcp.Tool {
+func ListResourcesTool() mcp.Tool {
 	return mcp.NewTool(
 		"listResources",
 		mcp.WithDescription("List all resources in the Kubernetes cluster of a specific type"),
@@ -115,30 +115,86 @@ func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 	}
 }
 
-// func HandleGetResource(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-// 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-// 		kind, ok := request.Params.Arguments["kind"].(string)
-// 		if !ok || kind == "" {
-// 			return nil, fmt.Errorf("missing required parameter: kind")
-// 		}
+// GetResourceTool is a tool for getting a specific resource in the Kubernetes cluster
+func GetResourcesTool() mcp.Tool {
+	return mcp.NewTool(
+		"getResource",
+		mcp.WithDescription("Get a specific resource in the Kubernetes cluster"),
+		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to get")),
+		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource to get")),
+		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
+	)
+}
 
-// 		name, ok := request.Params.Arguments["name"].(string)
-// 		if !ok || name == "" {
-// 			return nil, fmt.Errorf("missing required parameter: name")
-// 		}
+// GetResource is a tool for listing resources in the Kubernetes cluster
+func GetResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		kind, ok := request.Params.Arguments["kind"].(string)
+		if !ok || kind == "" {
+			return nil, fmt.Errorf("missing required parameter: kind")
+		}
 
-// 		namespace, _ := request.Params.Arguments["namespace"].(string)
+		name, ok := request.Params.Arguments["name"].(string)
+		if !ok || name == "" {
+			return nil, fmt.Errorf("missing required parameter: name")
+		}
 
-// 		resource, err := client.GetResource(ctx, kind, name, namespace)
-// 		if err != nil {
-// 			return nil, err
-// 		}
+		namespace, _ := request.Params.Arguments["namespace"].(string)
 
-// 		jsonResponse, err := json.Marshal(resource)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("failed to serialize response: %w", err)
-// 		}
+		resource, err := client.GetResource(ctx, kind, name, namespace)
+		if err != nil {
+			return nil, err
+		}
 
-// 		return mcp.NewToolResultText(string(jsonResponse)), nil
-// 	}
-// }
+		jsonResponse, err := json.Marshal(resource)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize response: %w", err)
+		}
+
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}
+
+
+
+//describe resource
+func DescribeResourcesTool() mcp.Tool {
+	return mcp.NewTool(
+		"describeResource",
+		mcp.WithDescription("Describe a resource in the Kubernetes cluster based on given kind and name"),
+		mcp.WithString("Kind", mcp.Required(), mcp.Description("The type of resource to describe")),
+		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource to describe")),
+		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
+	)
+}
+func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Helper function to extract string arguments with a default value
+		getStringArg := func(key string, defaultValue string) string {
+			if val, ok := request.Params.Arguments[key].(string); ok {
+				return val
+			}
+			return defaultValue
+		}
+
+		// Extract arguments
+		kind := getStringArg("Kind", "")
+		name := getStringArg("name", "")
+		namespace := getStringArg("namespace", "")
+
+		// Fetch resource description
+		resourceDescription, err := client.DescribeResource(ctx, kind, name, namespace)
+		if err != nil {
+			return nil, fmt.Errorf("failed to describe resource '%s' of kind '%s': %w", name, kind, err)
+		}
+
+		// Serialize response to JSON
+		jsonResponse, err := json.Marshal(resourceDescription)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize response: %w", err)
+		}
+
+		// Return JSON response using NewToolResultJSON
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}

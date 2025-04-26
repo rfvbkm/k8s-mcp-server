@@ -24,8 +24,10 @@ func main() {
 	}
 
 	// Register the tool and its handler with the server
-	s.AddTool(handlers.CreateGetAPIResources(), handlers.GetAPIResources(client))
-	s.AddTool(handlers.CreateListResourcesTool(), handlers.ListResources(client))
+	s.AddTool(handlers.GetAPIResourcesTool(), handlers.GetAPIResources(client))
+	s.AddTool(handlers.ListResourcesTool(), handlers.ListResources(client))
+	s.AddTool(handlers.GetResourcesTool(), handlers.GetResources(client))
+	s.AddTool(handlers.DescribeResourcesTool(), handlers.DescribeResources(client))
 
 	// Start the stdio server, which listens on stdin/stdout
 	fmt.Println("Starting MCP stdio server. Listening on stdin...")

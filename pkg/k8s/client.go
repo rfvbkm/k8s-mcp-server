@@ -231,3 +231,22 @@ func (c *Client) getCachedGVR(kind string) (*schema.GroupVersionResource, error)
 
 	return nil, fmt.Errorf("resource type %s not found", kind)
 }
+
+func (c *Client) DescribeResource(ctx context.Context, kind, name, namespace string) (map[string]interface{}, error) {
+	gvr, err := c.getCachedGVR(kind)
+	if err != nil {
+		return nil, err
+	}
+
+	var obj *unstructured.Unstructured
+	if namespace != "" {
+		obj, err = c.dynamicClient.Resource(*gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	} else {
+		obj, err = c.dynamicClient.Resource(*gvr).Get(ctx, name, metav1.GetOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve resource: %w", err)
+	}
+
+	return obj.UnstructuredContent(), nil
+}
