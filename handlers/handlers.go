@@ -19,7 +19,6 @@ func GetAPIResourcesTool() mcp.Tool {
 			"GetAPIResourcesHandler handles the getAPIResources tool\n"+
 			"It retrieves the API resources from the Kubernetes cluster\n"+
 			"and returns them as a response.\n"+
-			"The context is used to specify the cluster resource context\n"+
 			"e.g. 'beta' or 'prod'.\n"+
 			"The function returns a mcp.CallToolResult containing the API resources\n"+
 			"or an error if the operation fails.\n"+
@@ -198,3 +197,39 @@ func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
+
+//Get PodsLogsTool is a tool for getting logs of a specific pod in the Kubernetes cluster
+func GetPodsLogsTools() mcp.Tool {
+	return mcp.NewTool(
+		"getPodsLogs",
+		mcp.WithDescription("Get logs of a specific pod in the Kubernetes cluster"),
+		mcp.WithString("Name", mcp.Required(), mcp.Description("The name of the pod to get logs from")),
+		mcp.WithString("namespace", mcp.Description("The namespace of the pod")),
+	)
+}
+
+func GetPodsLogs(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		name, ok := request.Params.Arguments["Name"].(string)
+		if !ok || name == "" {
+			return nil, fmt.Errorf("missing required parameter: Name")
+		}
+
+		namespace, _ := request.Params.Arguments["namespace"].(string)
+
+		logs, err := client.GetPodsLogs(ctx, namespace, name)
+		if err != nil {
+			return nil, err
+		}
+
+		jsonResponse, err := json.Marshal(logs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize response: %w", err)
+		}
+
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}
+
+
+

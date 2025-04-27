@@ -28,6 +28,7 @@ func main() {
 	s.AddTool(handlers.ListResourcesTool(), handlers.ListResources(client))
 	s.AddTool(handlers.GetResourcesTool(), handlers.GetResources(client))
 	s.AddTool(handlers.DescribeResourcesTool(), handlers.DescribeResources(client))
+	s.AddTool(handlers.GetPodsLogsTools(), handlers.GetPodsLogs(client))
 
 	// Start the stdio server, which listens on stdin/stdout
 	fmt.Println("Starting MCP stdio server. Listening on stdin...")

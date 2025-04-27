@@ -6,6 +6,8 @@ A Kubernetes Model Control Plane (MCP) server that provides tools for interactin
 
 - **API Resource Discovery**: Get all available API resources in your Kubernetes cluster
 - **Resource Listing**: List resources of any type with optional namespace and label filtering
+- **Resource Details**: Get detailed information about specific Kubernetes resources
+- **Resource Description**: Get comprehensive descriptions of Kubernetes resources
 - **Standardized Interface**: Uses the MCP protocol for consistent tool interaction
 - **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes
 
@@ -46,43 +48,126 @@ The server will start and listen on stdin/stdout for MCP protocol messages.
 
 ### Available Tools
 
-#### 1. Get API Resources
+#### 1. `getAPIResources`
 
-Get all available API resources in your Kubernetes cluster:
+Retrieves all available API resources in the Kubernetes cluster.
 
+**Parameters:**
+- `includeNamespaceScoped` (boolean): Whether to include namespace-scoped resources (defaults to true)
+- `includeClusterScoped` (boolean): Whether to include cluster-scoped resources (defaults to true)
+
+**Example:**
 ```json
 {
-  "tool": "getAPIResources",
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getAPIResources",
   "params": {
-    "includeNamespaceScoped": true,
-    "includeClusterScoped": true
+    "arguments": {
+      "includeNamespaceScoped": true,
+      "includeClusterScoped": true
+    }
   }
 }
 ```
 
-Parameters:
-- `includeNamespaceScoped` (boolean): Include namespace-scoped resources (default: true)
-- `includeClusterScoped` (boolean): Include cluster-scoped resources (default: true)
+#### 2. `listResources`
 
-#### 2. List Resources
+Lists all instances of a specific resource type.
 
-List resources of a specific type:
+**Parameters:**
+- `Kind` (string, required): The kind of resource to list (e.g., "Pod", "Deployment")
+- `namespace` (string): The namespace to list resources from (if omitted, lists across all namespaces for namespaced resources)
+- `labelSelector` (string): Filter resources by label selector
 
+**Example:**
 ```json
 {
-  "tool": "listResources",
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "listResources",
   "params": {
-    "Kind": "Pod",
-    "namespace": "default",
-    "labelSelector": "app=myapp"
+    "arguments": {
+      "Kind": "Pod",
+      "namespace": "default",
+      "labelSelector": "app=nginx"
+    }
   }
 }
 ```
 
-Parameters:
-- `Kind` (string, required): The type of resource to list (e.g., "Pod", "Deployment")
-- `namespace` (string): The namespace to list resources in (optional)
-- `labelSelector` (string): A label selector to filter resources (optional)
+#### 3. `getResource`
+
+Retrieves detailed information about a specific resource.
+
+**Parameters:**
+- `kind` (string, required): The kind of resource to get (e.g., "Pod", "Deployment")
+- `name` (string, required): The name of the resource to get
+- `namespace` (string): The namespace of the resource (if it's a namespaced resource)
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getResource",
+  "params": {
+    "arguments": {
+      "kind": "Pod",
+      "name": "nginx-pod",
+      "namespace": "default"
+    }
+  }
+}
+```
+
+#### 4. `describeResource`
+
+Describes a resource in the Kubernetes cluster based on given kind and name, similar to `kubectl describe`.
+
+**Parameters:**
+- `Kind` (string, required): The kind of resource to describe (e.g., "Pod", "Deployment")
+- `name` (string, required): The name of the resource to describe
+- `namespace` (string): The namespace of the resource (if it's a namespaced resource)
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "describeResource",
+  "params": {
+    "arguments": {
+      "Kind": "Pod",
+      "name": "nginx-pod",
+      "namespace": "default"
+    }
+  }
+}
+```
+
+#### 5. `getPodsLogs`
+
+Retrieves the logs of a specific pod in the Kubernetes cluster.
+
+**Parameters:**
+- `Name` (string, required): The name of the pod to get logs from.
+- `namespace` (string): The namespace of the pod (if it's a namespaced resource).
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getPodsLogs",
+  "params": {
+    "arguments": {
+      "Name": "my-app-pod-12345",
+      "namespace": "production"
+    }
+  }
+}
+```
 
 ## Development
 
@@ -103,9 +188,9 @@ Parameters:
 
 To add a new tool:
 
-1. Create a new tool definition in `handlers/handlers.go`
-2. Implement the tool handler function
-3. Register the tool in `main.go`
+1. Create a new tool definition function (e.g., `MyNewTool() mcp.Tool`) in `handlers/handlers.go`
+2. Implement the tool handler function (e.g., `MyNewHandler(client *k8s.Client) func(...)`) in `handlers/handlers.go`
+3. Register the tool and its handler in `main.go` using `s.AddTool()`
 
 ## License
 

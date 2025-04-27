@@ -1,11 +1,15 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sync"
+	"io"
+
+	corev1 "k8s.io/api/core/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -249,4 +253,22 @@ func (c *Client) DescribeResource(ctx context.Context, kind, name, namespace str
 	}
 
 	return obj.UnstructuredContent(), nil
+}
+
+func (c *Client) GetPodsLogs(ctx context.Context, namespace, podName string) (string, error) {
+	tailLines := int64(100)
+	podLogOptions := &corev1.PodLogOptions{TailLines: &tailLines}
+	req := c.clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOptions)
+	logs, err := req.Stream(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get logs: %w", err)
+	}
+	defer logs.Close()
+
+	buf := new(bytes.Buffer)
+	if _, err := io.Copy(buf, logs); err != nil {
+		return "", fmt.Errorf("failed to read logs: %w", err)
+	}
+
+	return buf.String(), nil
 }
