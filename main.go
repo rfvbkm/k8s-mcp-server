@@ -11,8 +11,8 @@ import (
 func main() {
 	// Create MCP server
 	s := server.NewMCPServer(
-		" MCP K8S Server", // Give the server a name
-		"1.0.0",           // Server version
+		" MCP K8S Server", 
+		"1.0.0",           
 		server.WithResourceCapabilities(true, true), // Enable resource listing and subscription capabilities
 	)
 
