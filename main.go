@@ -29,7 +29,6 @@ func main() {
 	s.AddTool(handlers.GetResourcesTool(), handlers.GetResources(client))
 	s.AddTool(handlers.DescribeResourcesTool(), handlers.DescribeResources(client))
 	s.AddTool(handlers.GetPodsLogsTools(), handlers.GetPodsLogs(client))
-	// s.AddTool(handlers.GetPodResourceUsageTools(), handlers.GetPodResourceUsage(client))
 	s.AddTool(handlers.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
 	s.AddTool(handlers.GetPodMetricsTool(), handlers.GetPodMetrics(client))
 

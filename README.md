@@ -7,7 +7,10 @@ A Kubernetes Model Control Plane (MCP) server that provides tools for interactin
 - **API Resource Discovery**: Get all available API resources in your Kubernetes cluster
 - **Resource Listing**: List resources of any type with optional namespace and label filtering
 - **Resource Details**: Get detailed information about specific Kubernetes resources
-- **Resource Description**: Get comprehensive descriptions of Kubernetes resources
+- **Resource Description**: Get comprehensive descriptions of Kubernetes resources, similar to `kubectl describe`
+- **Pod Logs**: Retrieve logs from specific pods
+- **Node Metrics**: Get resource usage metrics for specific nodes
+- **Pod Metrics**: Get CPU and Memory metrics for specific pods
 - **Standardized Interface**: Uses the MCP protocol for consistent tool interaction
 - **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes
 
@@ -164,6 +167,50 @@ Retrieves the logs of a specific pod in the Kubernetes cluster.
     "arguments": {
       "Name": "my-app-pod-12345",
       "namespace": "production"
+    }
+  }
+}
+```
+
+#### 6. `getNodeMetrics`
+
+Retrieves resource usage metrics for a specific node in the Kubernetes cluster.
+
+**Parameters:**
+- `Name` (string, required): The name of the node to get metrics from.
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getNodeMetrics",
+  "params": {
+    "arguments": {
+      "Name": "worker-node-1"
+    }
+  }
+}
+```
+
+#### 7. `getPodMetrics`
+
+Retrieves CPU and Memory metrics for a specific pod in the Kubernetes cluster.
+
+**Parameters:**
+- `namespace` (string, required): The namespace of the pod.
+- `podName` (string, required): The name of the pod.
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getPodMetrics",
+  "params": {
+    "arguments": {
+      "namespace": "default",
+      "podName": "my-app-pod-67890"
     }
   }
 }
