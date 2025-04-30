@@ -1,3 +1,4 @@
+// Package k8s provides a client for interacting with the Kubernetes API.
 package k8s
 
 import (
@@ -23,7 +24,9 @@ import (
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-// Client encapsulates Kubernetes client functionality
+// Client encapsulates Kubernetes client functionality including dynamic,
+// discovery, and metrics clients.
+// It also caches API resource information for performance.
 type Client struct {
 	clientset        *kubernetes.Clientset
 	dynamicClient    dynamic.Interface
@@ -34,7 +37,10 @@ type Client struct {
 	cacheLock        sync.RWMutex
 }
 
-// NewClient creates a new Kubernetes client
+// NewClient creates a new Kubernetes client.
+// It initializes the standard clientset, dynamic client, discovery client,
+// and metrics client using the provided kubeconfig path or the default path.
+// If kubeconfigPath is empty, it defaults to ~/.kube/config.
 func NewClient(kubeconfigPath string) (*Client, error) {
 	var kubeconfig string
 	if kubeconfigPath != "" {
@@ -79,7 +85,10 @@ func NewClient(kubeconfigPath string) (*Client, error) {
 	}, nil
 }
 
-// GetAPIResources retrieves all API resource types in the cluster
+// GetAPIResources retrieves all API resource types in the cluster.
+// It uses the discovery client to fetch server-preferred resources.
+// Filters resources based on includeNamespaceScoped and includeClusterScoped flags.
+// Returns a slice of maps, each representing an API resource, or an error.
 func (c *Client) GetAPIResources(ctx context.Context, includeNamespaceScoped, includeClusterScoped bool) ([]map[string]interface{}, error) {
 	resourceLists, err := c.discoveryClient.ServerPreferredResources()
 	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
@@ -106,7 +115,10 @@ func (c *Client) GetAPIResources(ctx context.Context, includeNamespaceScoped, in
 	return resources, nil
 }
 
-// GetResource retrieves detailed information about a specific resource
+// GetResource retrieves detailed information about a specific resource.
+// It uses the dynamic client to fetch the resource by kind, name, and namespace.
+// It utilizes a cached GroupVersionResource (GVR) for efficiency.
+// Returns the unstructured content of the resource as a map, or an error.
 func (c *Client) GetResource(ctx context.Context, kind, name, namespace string) (map[string]interface{}, error) {
 	gvr, err := c.getCachedGVR(kind)
 	if err != nil {
@@ -126,7 +138,11 @@ func (c *Client) GetResource(ctx context.Context, kind, name, namespace string) 
 	return obj.UnstructuredContent(), nil
 }
 
-// ListResources lists all instances of a specific resource type
+// ListResources lists all instances of a specific resource type.
+// It uses the dynamic client and supports filtering by namespace, labelSelector,
+// and fieldSelector.
+// It utilizes a cached GroupVersionResource (GVR) for efficiency.
+// Returns a slice of maps, each representing a resource instance, or an error.
 func (c *Client) ListResources(ctx context.Context, kind, namespace, labelSelector, fieldSelector string) ([]map[string]interface{}, error) {
 	gvr, err := c.getCachedGVR(kind)
 	if err != nil {
@@ -155,7 +171,12 @@ func (c *Client) ListResources(ctx context.Context, kind, namespace, labelSelect
 	return resources, nil
 }
 
-// CreateOrUpdateResource creates or updates a resource
+// CreateOrUpdateResource creates a new resource or updates an existing one.
+// It parses the provided manifest string into an unstructured object.
+// It uses the dynamic client to first attempt an update, and if that fails
+// (e.g., resource not found), it attempts to create the resource.
+// Requires the resource manifest to include a name.
+// Returns the unstructured content of the created/updated resource, or an error.
 func (c *Client) CreateOrUpdateResource(ctx context.Context, kind, namespace, manifest string) (map[string]interface{}, error) {
 	obj := &unstructured.Unstructured{}
 	if err := json.Unmarshal([]byte(manifest), &obj.Object); err != nil {
@@ -188,7 +209,10 @@ func (c *Client) CreateOrUpdateResource(ctx context.Context, kind, namespace, ma
 	return result.UnstructuredContent(), nil
 }
 
-// DeleteResource deletes a resource
+// DeleteResource deletes a specific resource.
+// It uses the dynamic client to delete the resource by kind, name, and namespace.
+// It utilizes a cached GroupVersionResource (GVR) for efficiency.
+// Returns an error if the deletion fails.
 func (c *Client) DeleteResource(ctx context.Context, kind, name, namespace string) error {
 	gvr, err := c.getCachedGVR(kind)
 	if err != nil {
@@ -245,6 +269,11 @@ func (c *Client) getCachedGVR(kind string) (*schema.GroupVersionResource, error)
 	return nil, fmt.Errorf("resource type %s not found", kind)
 }
 
+// DescribeResource retrieves detailed information about a specific resource, similar to GetResource.
+// It uses the dynamic client to fetch the resource by kind, name, and namespace.
+// It utilizes a cached GroupVersionResource (GVR) for efficiency.
+// Returns the unstructured content of the resource as a map, or an error.
+// Note: This function currently has the same implementation as GetResource.
 func (c *Client) DescribeResource(ctx context.Context, kind, name, namespace string) (map[string]interface{}, error) {
 	gvr, err := c.getCachedGVR(kind)
 	if err != nil {
@@ -264,6 +293,9 @@ func (c *Client) DescribeResource(ctx context.Context, kind, name, namespace str
 	return obj.UnstructuredContent(), nil
 }
 
+// GetPodsLogs retrieves the logs for a specific pod.
+// It uses the corev1 clientset to fetch logs, limiting to the last 100 lines by default.
+// Returns the logs as a string, or an error.
 func (c *Client) GetPodsLogs(ctx context.Context, namespace, podName string) (string, error) {
 	tailLines := int64(100)
 	podLogOptions := &corev1.PodLogOptions{TailLines: &tailLines}
@@ -282,7 +314,9 @@ func (c *Client) GetPodsLogs(ctx context.Context, namespace, podName string) (st
 	return buf.String(), nil
 }
 
-// GetPodMetrics retrieves CPU and Memory metrics for a specific pod
+// GetPodMetrics retrieves CPU and Memory metrics for a specific pod.
+// It uses the metrics clientset to fetch pod metrics.
+// Returns a map containing pod metadata and container metrics, or an error.
 func (c *Client) GetPodMetrics(ctx context.Context, namespace, podName string) (map[string]interface{}, error) {
 	podMetrics, err := c.metricsClientset.MetricsV1beta1().PodMetricses(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
@@ -290,18 +324,18 @@ func (c *Client) GetPodMetrics(ctx context.Context, namespace, podName string) (
 	}
 
 	metricsResult := map[string]interface{}{
-		"podName":   podName,
-		"namespace": namespace,
-		"timestamp": podMetrics.Timestamp.Time,
-		"window":    podMetrics.Window.Duration.String(),
+		"podName":    podName,
+		"namespace":  namespace,
+		"timestamp":  podMetrics.Timestamp.Time,
+		"window":     podMetrics.Window.Duration.String(),
 		"containers": []map[string]interface{}{},
 	}
 
 	containerMetricsList := []map[string]interface{}{}
 	for _, container := range podMetrics.Containers {
 		containerMetrics := map[string]interface{}{
-			"name": container.Name,
-			"cpu":  container.Usage.Cpu().String(),    // Format Quantity
+			"name":   container.Name,
+			"cpu":    container.Usage.Cpu().String(),    // Format Quantity
 			"memory": container.Usage.Memory().String(), // Format Quantity
 		}
 		containerMetricsList = append(containerMetricsList, containerMetrics)
@@ -311,7 +345,9 @@ func (c *Client) GetPodMetrics(ctx context.Context, namespace, podName string) (
 	return metricsResult, nil
 }
 
-// GetNodeMetrics retrieves CPU and Memory metrics for a specific Node
+// GetNodeMetrics retrieves CPU and Memory metrics for a specific Node.
+// It uses the metrics clientset to fetch node metrics.
+// Returns a map containing node metadata and resource usage, or an error.
 func (c *Client) GetNodeMetrics(ctx context.Context, nodeName string) (map[string]interface{}, error) {
 	nodeMetrics, err := c.metricsClientset.MetricsV1beta1().NodeMetricses().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {

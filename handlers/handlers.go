@@ -1,3 +1,4 @@
+// Package handlers provides MCP tool handlers for interacting with Kubernetes.
 package handlers
 
 import (
@@ -10,7 +11,9 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// and is registered with the mcp server.
+// GetAPIResourcesTool creates a tool for getting API resources.
+// It defines the tool's name, description, and parameters for including
+// namespace-scoped and cluster-scoped resources.
 func GetAPIResourcesTool() mcp.Tool {
 	return mcp.NewTool(
 		"getAPIResources",
@@ -31,6 +34,10 @@ func GetAPIResourcesTool() mcp.Tool {
 
 }
 
+// GetAPIResources returns a handler function for the getAPIResources tool.
+// It retrieves API resources from the Kubernetes cluster based on the provided
+// context and parameters (includeNamespaceScoped, includeClusterScoped).
+// The result is serialized to JSON and returned.
 func GetAPIResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Helper function to extract string arguments with a default value
@@ -71,7 +78,9 @@ func GetAPIResources(client *k8s.Client) func(ctx context.Context, request mcp.C
 	}
 }
 
-// List all resources in the Kubernetes cluster of a specific type
+// ListResourcesTool creates a tool for listing resources of a specific type.
+// It defines the tool's name, description, and parameters for kind, namespace,
+// and labelSelector.
 func ListResourcesTool() mcp.Tool {
 	return mcp.NewTool(
 		"listResources",
@@ -82,6 +91,9 @@ func ListResourcesTool() mcp.Tool {
 	)
 }
 
+// ListResources returns a handler function for the listResources tool.
+// It lists resources in the Kubernetes cluster based on the provided kind,
+// namespace, and labelSelector. The result is serialized to JSON and returned.
 func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Helper function to extract string arguments with a default value
@@ -114,7 +126,9 @@ func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 	}
 }
 
-// GetResourceTool is a tool for getting a specific resource in the Kubernetes cluster
+// GetResourcesTool creates a tool for getting a specific resource.
+// It defines the tool's name, description, and parameters for kind, name,
+// and namespace.
 func GetResourcesTool() mcp.Tool {
 	return mcp.NewTool(
 		"getResource",
@@ -125,7 +139,9 @@ func GetResourcesTool() mcp.Tool {
 	)
 }
 
-// GetResource is a tool for listing resources in the Kubernetes cluster
+// GetResources returns a handler function for the getResource tool.
+// It retrieves a specific resource from the Kubernetes cluster based on the
+// provided kind, name, and namespace. The result is serialized to JSON and returned.
 func GetResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		kind, ok := request.Params.Arguments["kind"].(string)
@@ -154,7 +170,9 @@ func GetResources(client *k8s.Client) func(ctx context.Context, request mcp.Call
 	}
 }
 
-// describe resource
+// DescribeResourcesTool creates a tool for describing a resource.
+// It defines the tool's name, description, and parameters for kind, name,
+// and namespace.
 func DescribeResourcesTool() mcp.Tool {
 	return mcp.NewTool(
 		"describeResource",
@@ -164,6 +182,11 @@ func DescribeResourcesTool() mcp.Tool {
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
 	)
 }
+
+// DescribeResources returns a handler function for the describeResource tool.
+// It fetches the description (manifest) of a specific resource from the
+// Kubernetes cluster based on the provided kind, name, and namespace.
+// The result is serialized to JSON and returned.
 func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Helper function to extract string arguments with a default value
@@ -196,7 +219,9 @@ func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp
 	}
 }
 
-// Get PodsLogsTool is a tool for getting logs of a specific pod in the Kubernetes cluster
+// GetPodsLogsTools creates a tool for getting pod logs.
+// It defines the tool's name, description, and parameters for the pod name
+// and namespace.
 func GetPodsLogsTools() mcp.Tool {
 	return mcp.NewTool(
 		"getPodsLogs",
@@ -206,6 +231,9 @@ func GetPodsLogsTools() mcp.Tool {
 	)
 }
 
+// GetPodsLogs returns a handler function for the getPodsLogs tool.
+// It retrieves logs for a specific pod from the Kubernetes cluster based on the
+// provided name and namespace. The result is serialized to JSON and returned.
 func GetPodsLogs(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		name, ok := request.Params.Arguments["Name"].(string)
@@ -229,7 +257,8 @@ func GetPodsLogs(client *k8s.Client) func(ctx context.Context, request mcp.CallT
 	}
 }
 
-// Get Resource useage of a specific Node in the Kubernetes cluster
+// GetNodeMetricsTools creates a tool for getting node metrics.
+// It defines the tool's name, description, and parameters for the node name.
 func GetNodeMetricsTools() mcp.Tool {
 	return mcp.NewTool(
 		"getNodeMetrics",
@@ -238,6 +267,10 @@ func GetNodeMetricsTools() mcp.Tool {
 	)
 }
 
+// GetNodeMetrics returns a handler function for the getNodeMetrics tool.
+// It retrieves resource usage metrics for a specific node from the Kubernetes
+// cluster based on the provided node name. The result is serialized to JSON
+// and returned.
 func GetNodeMetrics(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		name, ok := request.Params.Arguments["Name"].(string)
@@ -259,7 +292,9 @@ func GetNodeMetrics(client *k8s.Client) func(ctx context.Context, request mcp.Ca
 	}
 }
 
-// GetPodMetricsTool defines the MCP tool for getting pod metrics
+// GetPodMetricsTool creates a tool for getting pod metrics.
+// It defines the tool's name, description, and parameters for the pod namespace
+// and name.
 func GetPodMetricsTool() mcp.Tool {
 	return mcp.NewTool(
 		"getPodMetrics",
@@ -269,7 +304,10 @@ func GetPodMetricsTool() mcp.Tool {
 	)
 }
 
-// GetPodMetrics is the handler function for the getPodMetrics tool
+// GetPodMetrics returns a handler function for the getPodMetrics tool.
+// It retrieves CPU and Memory metrics for a specific pod from the Kubernetes
+// cluster based on the provided namespace and pod name. The result is
+// serialized to JSON and returned.
 func GetPodMetrics(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		namespace, ok := request.Params.Arguments["namespace"].(string)
@@ -284,7 +322,7 @@ func GetPodMetrics(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 
 		metrics, err := client.GetPodMetrics(ctx, namespace, podName)
 		if err != nil {
-			return nil, err 
+			return nil, err
 		}
 
 		jsonResponse, err := json.Marshal(metrics)

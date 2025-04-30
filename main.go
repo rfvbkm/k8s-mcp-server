@@ -1,13 +1,17 @@
+// Package main is the entry point for the Kubernetes MCP server.
 package main
 
 import (
 	"fmt"
+
 	"github.com/reza-gholizade/k8s-mcp-server/handlers"
 	"github.com/reza-gholizade/k8s-mcp-server/pkg/k8s"
 
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// main initializes the Kubernetes client, sets up the MCP server with
+// Kubernetes tool handlers, and starts the server listening on stdio.
 func main() {
 	// Create MCP server
 	s := server.NewMCPServer(
