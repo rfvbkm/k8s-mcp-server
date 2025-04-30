@@ -1,4 +1,12 @@
 // Package main is the entry point for the Kubernetes MCP server.
+// Manage Kubernetes Cluster workloads via MCP.
+// It initializes the MCP server, sets up the Kubernetes client,
+// and registers the necessary handlers for various Kubernetes operations.
+// It also starts the server to listen for incoming requests on stdin/stdout.
+// It uses the MCP Go library to create the server and handle requests.
+// The server is capable of handling various Kubernetes operations
+// such as listing resources, getting resource details, and retrieving logs.
+
 package main
 
 import (
