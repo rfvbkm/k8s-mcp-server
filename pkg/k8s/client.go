@@ -272,3 +272,37 @@ func (c *Client) GetPodsLogs(ctx context.Context, namespace, podName string) (st
 
 	return buf.String(), nil
 }
+
+func (c *Client) GetPodResourceUsage(ctx context.Context, namespace, podName string) (map[string]interface{}, error) {
+	pod, err := c.clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pod: %w", err)
+	}
+
+	resourceUsage := make(map[string]interface{})
+	resourceUsage["name"] = pod.Name
+	resourceUsage["namespace"] = pod.Namespace
+	resourceUsage["containers"] = make([]map[string]interface{}, len(pod.Spec.Containers))
+
+	for i, container := range pod.Spec.Containers {
+		resourceUsage["containers"].([]map[string]interface{})[i] = map[string]interface{}{
+			"name":      container.Name,
+			"resources": container.Resources,
+		}
+	}
+
+	return resourceUsage, nil
+}
+func (c *Client) GetResourceUsageByNode(ctx context.Context, nodeName string) (map[string]interface{}, error) {
+	node, err := c.clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node: %w", err)
+	}
+
+	resourceUsage := make(map[string]interface{})
+	resourceUsage["name"] = node.Name
+	resourceUsage["capacity"] = node.Status.Capacity
+	resourceUsage["allocatable"] = node.Status.Allocatable
+
+	return resourceUsage, nil
+}
