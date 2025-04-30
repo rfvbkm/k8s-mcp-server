@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"sync"
-	"io"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 // Client encapsulates Kubernetes client functionality
@@ -27,6 +28,7 @@ type Client struct {
 	clientset        *kubernetes.Clientset
 	dynamicClient    dynamic.Interface
 	discoveryClient  *discovery.DiscoveryClient
+	metricsClientset *metricsclientset.Clientset // Add metrics client
 	restConfig       *rest.Config
 	apiResourceCache map[string]*schema.GroupVersionResource
 	cacheLock        sync.RWMutex
@@ -61,10 +63,17 @@ func NewClient(kubeconfigPath string) (*Client, error) {
 		return nil, fmt.Errorf("failed to create discovery client: %w", err)
 	}
 
+	// Initialize metrics client
+	metricsClient, err := metricsclientset.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics client: %w", err)
+	}
+
 	return &Client{
 		clientset:        clientset,
 		dynamicClient:    dynamicClient,
 		discoveryClient:  discoveryClient,
+		metricsClientset: metricsClient, // Assign metrics client
 		restConfig:       config,
 		apiResourceCache: make(map[string]*schema.GroupVersionResource),
 	}, nil
@@ -273,36 +282,51 @@ func (c *Client) GetPodsLogs(ctx context.Context, namespace, podName string) (st
 	return buf.String(), nil
 }
 
-func (c *Client) GetPodResourceUsage(ctx context.Context, namespace, podName string) (map[string]interface{}, error) {
-	pod, err := c.clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+// GetPodMetrics retrieves CPU and Memory metrics for a specific pod
+func (c *Client) GetPodMetrics(ctx context.Context, namespace, podName string) (map[string]interface{}, error) {
+	podMetrics, err := c.metricsClientset.MetricsV1beta1().PodMetricses(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pod: %w", err)
+		return nil, fmt.Errorf("failed to get metrics for pod '%s' in namespace '%s': %w", podName, namespace, err)
 	}
 
-	resourceUsage := make(map[string]interface{})
-	resourceUsage["name"] = pod.Name
-	resourceUsage["namespace"] = pod.Namespace
-	resourceUsage["containers"] = make([]map[string]interface{}, len(pod.Spec.Containers))
+	metricsResult := map[string]interface{}{
+		"podName":   podName,
+		"namespace": namespace,
+		"timestamp": podMetrics.Timestamp.Time,
+		"window":    podMetrics.Window.Duration.String(),
+		"containers": []map[string]interface{}{},
+	}
 
-	for i, container := range pod.Spec.Containers {
-		resourceUsage["containers"].([]map[string]interface{})[i] = map[string]interface{}{
-			"name":      container.Name,
-			"resources": container.Resources,
+	containerMetricsList := []map[string]interface{}{}
+	for _, container := range podMetrics.Containers {
+		containerMetrics := map[string]interface{}{
+			"name": container.Name,
+			"cpu":  container.Usage.Cpu().String(),    // Format Quantity
+			"memory": container.Usage.Memory().String(), // Format Quantity
 		}
+		containerMetricsList = append(containerMetricsList, containerMetrics)
 	}
+	metricsResult["containers"] = containerMetricsList
 
-	return resourceUsage, nil
+	return metricsResult, nil
 }
-func (c *Client) GetResourceUsageByNode(ctx context.Context, nodeName string) (map[string]interface{}, error) {
-	node, err := c.clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+
+// GetNodeMetrics retrieves CPU and Memory metrics for a specific Node
+func (c *Client) GetNodeMetrics(ctx context.Context, nodeName string) (map[string]interface{}, error) {
+	nodeMetrics, err := c.metricsClientset.MetricsV1beta1().NodeMetricses().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get node: %w", err)
+		return nil, fmt.Errorf("failed to get metrics for node '%s': %w", nodeName, err)
 	}
 
-	resourceUsage := make(map[string]interface{})
-	resourceUsage["name"] = node.Name
-	resourceUsage["capacity"] = node.Status.Capacity
-	resourceUsage["allocatable"] = node.Status.Allocatable
+	metricsResult := map[string]interface{}{
+		"nodeName":  nodeName,
+		"timestamp": nodeMetrics.Timestamp.Time,
+		"window":    nodeMetrics.Window.Duration.String(),
+		"usage": map[string]string{
+			"cpu":    nodeMetrics.Usage.Cpu().String(),    // Format Quantity
+			"memory": nodeMetrics.Usage.Memory().String(), // Format Quantity
+		},
+	}
 
-	return resourceUsage, nil
+	return metricsResult, nil
 }
