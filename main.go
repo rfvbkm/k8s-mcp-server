@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"k8s-mcp-server/handlers"
-	"k8s-mcp-server/pkg/k8s"
+	"github.com/reza-gholizade/k8s-mcp-server/handlers"
+	"github.com/reza-gholizade/k8s-mcp-server/pkg/k8s"
 
 	"github.com/mark3labs/mcp-go/server"
 )

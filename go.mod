@@ -1,4 +1,4 @@
-module k8s-mcp-server
+module github.com/reza-gholizade/k8s-mcp-server
 
 go 1.24.1
 
