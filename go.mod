@@ -3,7 +3,7 @@ module github.com/reza-gholizade/k8s-mcp-server
 go 1.24.1
 
 require (
-	github.com/mark3labs/mcp-go v0.22.0
+	github.com/mark3labs/mcp-go v0.24.1
 	k8s.io/api v0.33.0
 	k8s.io/apimachinery v0.33.0
 	k8s.io/client-go v0.33.0
