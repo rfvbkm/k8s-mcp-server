@@ -43,7 +43,7 @@ func main() {
 	s.AddTool(handlers.GetPodsLogsTools(), handlers.GetPodsLogs(client))
 	s.AddTool(handlers.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
 	s.AddTool(handlers.GetPodMetricsTool(), handlers.GetPodMetrics(client))
-
+	s.AddTool(handlers.GetEventsTool(), handlers.GetEvents(client))
 	// Start the stdio server, which listens on stdin/stdout
 	fmt.Println("Starting MCP stdio server. Listening on stdin...")
 	if err := server.ServeStdio(s); err != nil {

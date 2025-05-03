@@ -366,3 +366,36 @@ func (c *Client) GetNodeMetrics(ctx context.Context, nodeName string) (map[strin
 
 	return metricsResult, nil
 }
+
+// GetEvents retrieves events for a specific namespace or all namespaces.
+// It uses the corev1 clientset to fetch events.
+// Returns a slice of maps, each representing an event, or an error.
+func (c *Client) GetEvents(ctx context.Context, namespace string) ([]map[string]interface{}, error) {
+	var eventList *corev1.EventList
+	var err error
+
+	if namespace != "" {
+		eventList, err = c.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	} else {
+		eventList, err = c.clientset.CoreV1().Events("").List(ctx, metav1.ListOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve events: %w", err)
+	}
+
+	var events []map[string]interface{}
+	for _, event := range eventList.Items {
+		events = append(events, map[string]interface{}{
+			"name":      event.Name,
+			"namespace": event.Namespace,
+			"reason":    event.Reason,
+			"message":   event.Message,
+			"source":    event.Source.Component,
+			"type":      event.Type,
+			"count":     event.Count,
+			"firstTime": event.FirstTimestamp.Time,
+			"lastTime":  event.LastTimestamp.Time,
+		})
+	}
+	return events, nil
+}

@@ -333,3 +333,38 @@ func GetPodMetrics(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
+
+// GetEventsTool creates a tool for getting events in the Kubernetes cluster.
+// It defines the tool's name, description, and parameters for the namespace
+// and labelSelector.
+func GetEventsTool() mcp.Tool {
+	return mcp.NewTool(
+		"getEvents",
+		mcp.WithDescription("Get events in the Kubernetes cluster"),
+		mcp.WithString("namespace", mcp.Description("The namespace to get events from")),
+		mcp.WithString("labelSelector", mcp.Description("A label selector to filter events")),
+	)
+}
+// GetEvents returns a handler function for the getEvents tool.
+// It retrieves events from the Kubernetes cluster based on the provided
+// namespace and labelSelector. The result is serialized to JSON and returned.
+func GetEvents(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		namespace, ok := request.Params.Arguments["namespace"].(string)
+		if !ok || namespace == "" {
+			return nil, fmt.Errorf("missing required parameter: namespace")
+		}
+
+		events, err := client.GetEvents(ctx, namespace)
+		if err != nil {
+			return nil, err
+		}
+
+		jsonResponse, err := json.Marshal(events)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize events response: %w", err)
+		}
+
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}
