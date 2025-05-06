@@ -11,6 +11,7 @@ A Kubernetes Model Control Plane (MCP) server that provides tools for interactin
 - **Pod Logs**: Retrieve logs from specific pods
 - **Node Metrics**: Get resource usage metrics for specific nodes
 - **Pod Metrics**: Get CPU and Memory metrics for specific pods
+- **Event Listing**: List events within a namespace or for a specific resource.
 - **Standardized Interface**: Uses the MCP protocol for consistent tool interaction
 - **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes
 
@@ -216,6 +217,45 @@ Retrieves CPU and Memory metrics for a specific pod in the Kubernetes cluster.
 }
 ```
 
+#### 8. `getEvents`
+
+Retrieves events for a specific namespace or resource in the Kubernetes cluster.
+
+**Parameters:**
+- `namespace` (string): The namespace to get events from. If omitted, events from all namespaces are considered (if permitted by RBAC).
+- `resourceName` (string): The name of a specific resource (e.g., a Pod name) to filter events for.
+- `resourceKind` (string): The kind of the specific resource (e.g., "Pod") if `resourceName` is provided.
+
+**Example (Namespace Events):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getEvents",
+  "params": {
+    "arguments": {
+      "namespace": "default"
+    }
+  }
+}
+```
+
+**Example (Resource Events):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getEvents",
+  "params": {
+    "arguments": {
+      "namespace": "production",
+      "resourceName": "my-app-pod-12345",
+      "resourceKind": "Pod"
+    }
+  }
+}
+```
+
 ## Development
 
 ### Project Structure
@@ -239,7 +279,12 @@ To add a new tool:
 2. Implement the tool handler function (e.g., `MyNewHandler(client *k8s.Client) func(...)`) in `handlers/handlers.go`
 3. Register the tool and its handler in `main.go` using `s.AddTool()`
 
-## License
+## Contributing
 
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
+
+## License
 gholizade.net@gmail.com
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
