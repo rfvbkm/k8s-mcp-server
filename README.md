@@ -12,6 +12,7 @@ A Kubernetes Model Control Plane (MCP) server that provides tools for interactin
 - **Node Metrics**: Get resource usage metrics for specific nodes
 - **Pod Metrics**: Get CPU and Memory metrics for specific pods
 - **Event Listing**: List events within a namespace or for a specific resource.
+- **Resource Creation**: Create new Kubernetes resources from a manifest.
 - **Standardized Interface**: Uses the MCP protocol for consistent tool interaction
 - **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes
 
@@ -251,6 +252,29 @@ Retrieves events for a specific namespace or resource in the Kubernetes cluster.
       "namespace": "production",
       "resourceName": "my-app-pod-12345",
       "resourceKind": "Pod"
+    }
+  }
+}
+```
+
+#### 9. `createorUpdateResource`
+
+Creates a new resource in the Kubernetes cluster from a YAML or JSON manifest.
+
+**Parameters:**
+- `manifest` (string, required): The YAML or JSON manifest of the resource to create.
+- `namespace` (string, optional): The namespace in which to create the resource. If the manifest contains a namespace, this parameter can be omitted or used to override it (behavior might depend on server implementation).
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "createResource",
+  "params": {
+    "arguments": {
+      "namespace": "default",
+      "manifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
     }
   }
 }
