@@ -312,3 +312,5 @@ gholizade.net@gmail.com
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+<a href="https://glama.ai/mcp/servers/@reza-gholizade/k8s-mcp-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@reza-gholizade/k8s-mcp-server/badge" />
