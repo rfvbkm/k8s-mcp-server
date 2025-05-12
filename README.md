@@ -1,14 +1,14 @@
 # Kubernetes MCP Server
 
-A Kubernetes Model Control Plane (MCP) server that provides tools for interacting with Kubernetes clusters through a standardized interface.
+A Kubernetes Model Context Protocol (MCP) server that provides tools for interacting with Kubernetes clusters through a standardized interface.
 
 ## Features
 
 - **API Resource Discovery**: Get all available API resources in your Kubernetes cluster
 - **Resource Listing**: List resources of any type with optional namespace and label filtering
 - **Resource Details**: Get detailed information about specific Kubernetes resources
-- **Resource Description**: Get comprehensive descriptions of Kubernetes resources, similar to `kubectl describe`
-- **Pod Logs**: Retrieve logs from specific pods
+- **Resource Description**: Get comprehensive descriptions of Kubernetes resources
+- **Pod Logs**: Retrieve logs from specific pods 
 - **Node Metrics**: Get resource usage metrics for specific nodes
 - **Pod Metrics**: Get CPU and Memory metrics for specific pods
 - **Event Listing**: List events within a namespace or for a specific resource.

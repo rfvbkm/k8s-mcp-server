@@ -45,9 +45,15 @@ func main() {
 	s.AddTool(handlers.GetPodMetricsTool(), handlers.GetPodMetrics(client))
 	s.AddTool(handlers.GetEventsTool(), handlers.GetEvents(client))
 	s.AddTool(handlers.CreateResourceTool(), handlers.CreateResource(client))
-	// Start the stdio server, which listens on stdin/stdout
-	fmt.Println("Starting MCP stdio server. Listening on stdin...")
-	if err := server.ServeStdio(s); err != nil {
-		fmt.Printf("Server error: %v\n", err)
+
+
+	// Start SSE server
+	sse := server.NewSSEServer(s)
+	port := ":8080"
+	if err := sse.Start(port); err != nil {
+		fmt.Printf("Failed to start SSE server: %v\n", err)
+		return
 	}
+	fmt.Printf("SSE server started on port %s\n", port)
 }
+
