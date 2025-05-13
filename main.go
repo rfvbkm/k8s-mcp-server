@@ -14,6 +14,7 @@ import (
 
 	"github.com/reza-gholizade/k8s-mcp-server/handlers"
 	"github.com/reza-gholizade/k8s-mcp-server/pkg/k8s"
+	"github.com/reza-gholizade/k8s-mcp-server/tools"
 
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -36,15 +37,15 @@ func main() {
 	}
 
 	// Register the tool and its handler with the server
-	s.AddTool(handlers.GetAPIResourcesTool(), handlers.GetAPIResources(client))
-	s.AddTool(handlers.ListResourcesTool(), handlers.ListResources(client))
-	s.AddTool(handlers.GetResourcesTool(), handlers.GetResources(client))
-	s.AddTool(handlers.DescribeResourcesTool(), handlers.DescribeResources(client))
-	s.AddTool(handlers.GetPodsLogsTools(), handlers.GetPodsLogs(client))
-	s.AddTool(handlers.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
-	s.AddTool(handlers.GetPodMetricsTool(), handlers.GetPodMetrics(client))
-	s.AddTool(handlers.GetEventsTool(), handlers.GetEvents(client))
-	s.AddTool(handlers.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
+	s.AddTool(tools.GetAPIResourcesTool(), handlers.GetAPIResources(client))
+	s.AddTool(tools.ListResourcesTool(), handlers.ListResources(client))
+	s.AddTool(tools.GetResourcesTool(), handlers.GetResources(client))
+	s.AddTool(tools.DescribeResourcesTool(), handlers.DescribeResources(client))
+	s.AddTool(tools.GetPodsLogsTools(), handlers.GetPodsLogs(client))
+	s.AddTool(tools.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
+	s.AddTool(tools.GetPodMetricsTool(), handlers.GetPodMetrics(client))
+	s.AddTool(tools.GetEventsTool(), handlers.GetEvents(client))
+	s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
 
 
 	// Start SSE server
@@ -56,4 +57,3 @@ func main() {
 	}
 	fmt.Printf("SSE server started on port %s\n", port)
 }
-
