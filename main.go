@@ -44,7 +44,7 @@ func main() {
 	s.AddTool(handlers.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
 	s.AddTool(handlers.GetPodMetricsTool(), handlers.GetPodMetrics(client))
 	s.AddTool(handlers.GetEventsTool(), handlers.GetEvents(client))
-	s.AddTool(handlers.CreateResourceTool(), handlers.CreateResource(client))
+	s.AddTool(handlers.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
 
 
 	// Start SSE server

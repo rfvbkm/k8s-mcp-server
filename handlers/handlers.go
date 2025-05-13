@@ -371,12 +371,11 @@ func GetEvents(client *k8s.Client) func(ctx context.Context, request mcp.CallToo
 
 
 // create resource of any type or kind
-func CreateResourceTool() mcp.Tool {
+func CreateOrUpdateResourceTool() mcp.Tool {
 	return mcp.NewTool(
 		"createResource",
 		mcp.WithDescription("Create a resource in the Kubernetes cluster"),
 		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to create")),
-		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource to create")),
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
 		mcp.WithString("manifest", mcp.Required(), mcp.Description("The manifest of the resource to create")),
 	)
@@ -385,16 +384,11 @@ func CreateResourceTool() mcp.Tool {
 // Create or Update Resource returns a handler function for the createResource tool.
 // It creates or Updates  a resource in the Kubernetes cluster based on the provided kind,
 // name, namespace, and manifest. The result is serialized to JSON and returned.
-func CreateResource(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func CreateOrUpdateResource(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		kind, ok := request.Params.Arguments["kind"].(string)
 		if !ok || kind == "" {
 			return nil, fmt.Errorf("missing required parameter: kind")
-		}
-
-		name, ok := request.Params.Arguments["name"].(string)
-		if !ok || name == "" {
-			return nil, fmt.Errorf("missing required parameter: name")
 		}
 
 		namespace, _ := request.Params.Arguments["namespace"].(string)
@@ -404,7 +398,7 @@ func CreateResource(client *k8s.Client) func(ctx context.Context, request mcp.Ca
 			return nil, fmt.Errorf("missing required parameter: manifest")
 		}
 
-		resource, err := client.CreateOrUpdateResource(ctx, kind, name, namespace, manifest)
+		resource, err := client.CreateOrUpdateResource(ctx, kind, namespace, manifest)
 		if err != nil {
 			return nil, err
 		}

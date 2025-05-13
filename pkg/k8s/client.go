@@ -177,7 +177,7 @@ func (c *Client) ListResources(ctx context.Context, kind, namespace, labelSelect
 // (e.g., resource not found), it attempts to create the resource.
 // Requires the resource manifest to include a name.
 // Returns the unstructured content of the created/updated resource, or an error.
-func (c *Client) CreateOrUpdateResource(ctx context.Context, kind, name, namespace, manifest string) (map[string]interface{}, error) {
+func (c *Client) CreateOrUpdateResource(ctx context.Context, kind, namespace, manifest string) (map[string]interface{}, error) {
 	obj := &unstructured.Unstructured{}
 	if err := json.Unmarshal([]byte(manifest), &obj.Object); err != nil {
 		return nil, fmt.Errorf("failed to parse resource manifest: %w", err)
