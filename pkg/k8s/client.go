@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -295,23 +296,80 @@ func (c *Client) DescribeResource(ctx context.Context, kind, name, namespace str
 
 // GetPodsLogs retrieves the logs for a specific pod.
 // It uses the corev1 clientset to fetch logs, limiting to the last 100 lines by default.
+// If containerName is provided, it gets logs for that specific container.
+// If containerName is empty and the pod has multiple containers, it gets logs from all containers.
 // Returns the logs as a string, or an error.
-func (c *Client) GetPodsLogs(ctx context.Context, namespace, podName string) (string, error) {
+func (c *Client) GetPodsLogs(ctx context.Context, namespace, containerName, podName string) (string, error) {
 	tailLines := int64(100)
-	podLogOptions := &corev1.PodLogOptions{TailLines: &tailLines}
-	req := c.clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOptions)
-	logs, err := req.Stream(ctx)
+	podLogOptions := &corev1.PodLogOptions{
+		TailLines: &tailLines,
+	}
+
+	// If container name is provided, use it
+	if containerName != "" {
+		podLogOptions.Container = containerName
+		req := c.clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOptions)
+		logs, err := req.Stream(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to get logs for container '%s': %w", containerName, err)
+		}
+		defer logs.Close()
+
+		buf := new(bytes.Buffer)
+		if _, err := io.Copy(buf, logs); err != nil {
+			return "", fmt.Errorf("failed to read logs: %w", err)
+		}
+		return buf.String(), nil
+	}
+
+	// If no container name provided, first get the pod to check its containers
+	pod, err := c.clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to get logs: %w", err)
-	}
-	defer logs.Close()
-
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, logs); err != nil {
-		return "", fmt.Errorf("failed to read logs: %w", err)
+		return "", fmt.Errorf("failed to get pod details: %w", err)
 	}
 
-	return buf.String(), nil
+	// If the pod has only one container, get logs from that container
+	if len(pod.Spec.Containers) == 1 {
+		req := c.clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOptions)
+		logs, err := req.Stream(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to get logs: %w", err)
+		}
+		defer logs.Close()
+
+		buf := new(bytes.Buffer)
+		if _, err := io.Copy(buf, logs); err != nil {
+			return "", fmt.Errorf("failed to read logs: %w", err)
+		}
+		return buf.String(), nil
+	}
+
+	// If the pod has multiple containers, get logs from each container
+	var allLogs strings.Builder
+	for _, container := range pod.Spec.Containers {
+		containerLogOptions := podLogOptions.DeepCopy()
+		containerLogOptions.Container = container.Name
+
+		req := c.clientset.CoreV1().Pods(namespace).GetLogs(podName, containerLogOptions)
+		logs, err := req.Stream(ctx)
+		if err != nil {
+			allLogs.WriteString(fmt.Sprintf("\n--- Error getting logs for container %s: %v ---\n", container.Name, err))
+			continue
+		}
+
+		allLogs.WriteString(fmt.Sprintf("\n--- Logs for container %s ---\n", container.Name))
+		buf := new(bytes.Buffer)
+		_, err = io.Copy(buf, logs)
+		logs.Close()
+
+		if err != nil {
+			allLogs.WriteString(fmt.Sprintf("Error reading logs: %v\n", err))
+		} else {
+			allLogs.WriteString(buf.String())
+		}
+	}
+
+	return allLogs.String(), nil
 }
 
 // GetPodMetrics retrieves CPU and Memory metrics for a specific pod.

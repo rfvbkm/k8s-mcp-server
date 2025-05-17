@@ -168,8 +168,10 @@ func GetPodsLogs(client *k8s.Client) func(ctx context.Context, request mcp.CallT
 		}
 
 		namespace, _ := request.Params.Arguments["namespace"].(string)
+		containerName, _ := request.Params.Arguments["containerName"].(string)
 
-		logs, err := client.GetPodsLogs(ctx, namespace, name)
+
+		logs, err := client.GetPodsLogs(ctx, namespace, containerName, name)
 		if err != nil {
 			return nil, err
 		}

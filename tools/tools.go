@@ -76,6 +76,7 @@ func GetPodsLogsTools() mcp.Tool {
 		"getPodsLogs",
 		mcp.WithDescription("Get logs of a specific pod in the Kubernetes cluster"),
 		mcp.WithString("Name", mcp.Required(), mcp.Description("The name of the pod to get logs from")),
+		mcp.WithString("containerName", mcp.Description("The name of the container to get logs from")),
 		mcp.WithString("namespace", mcp.Description("The namespace of the pod")),
 	)
 }
