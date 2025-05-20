@@ -10,7 +10,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"os"
 
 	"github.com/reza-gholizade/k8s-mcp-server/handlers"
 	"github.com/reza-gholizade/k8s-mcp-server/pkg/k8s"
@@ -20,8 +22,16 @@ import (
 )
 
 // main initializes the Kubernetes client, sets up the MCP server with
-// Kubernetes tool handlers, and starts the server listening on stdio.
+// Kubernetes tool handlers, and starts the server in the configured mode.
 func main() {
+	// Parse command line flags
+	var mode string
+	var port string
+	
+	flag.StringVar(&port, "port", getEnvOrDefault("SERVER_PORT", "8080"), "Server port")
+	flag.StringVar(&mode, "mode", getEnvOrDefault("SERVER_MODE", "sse"), "Server mode: 'stdio' or 'sse'")
+	flag.Parse()
+
 	// Create MCP server
 	s := server.NewMCPServer(
 		" MCP K8S Server",
@@ -47,13 +57,32 @@ func main() {
 	s.AddTool(tools.GetEventsTool(), handlers.GetEvents(client))
 	s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
 
-
-	// Start SSE server
-	sse := server.NewSSEServer(s)
-	port := ":8080"
-	if err := sse.Start(port); err != nil {
-		fmt.Printf("Failed to start SSE server: %v\n", err)
+	// Start server based on mode
+	switch mode {
+	case "stdio":
+		fmt.Println("Starting server in stdio mode...")
+		if err := server.ServeStdio(s); err != nil {
+			fmt.Printf("Failed to start stdio server: %v\n", err)
+			return
+		}
+	case "sse":
+		fmt.Printf("Starting server in SSE mode on port %s...\n", port)
+		sse := server.NewSSEServer(s)
+		if err := sse.Start(":" + port); err != nil {
+			fmt.Printf("Failed to start SSE server: %v\n", err)
+			return
+		}
+		fmt.Printf("SSE server started on port %s\n", port)
+	default:
+		fmt.Printf("Unknown server mode: %s. Use 'stdio' or 'sse'.\n", mode)
 		return
 	}
-	fmt.Printf("SSE server started on port %s\n", port)
+}
+
+// getEnvOrDefault returns the value of the environment variable or the default value if not set
+func getEnvOrDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
 }

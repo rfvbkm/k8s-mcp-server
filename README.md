@@ -4,17 +4,18 @@ A Kubernetes Model Context Protocol (MCP) server that provides tools for interac
 
 ## Features
 
-- **API Resource Discovery**: Get all available API resources in your Kubernetes cluster
-- **Resource Listing**: List resources of any type with optional namespace and label filtering
-- **Resource Details**: Get detailed information about specific Kubernetes resources
-- **Resource Description**: Get comprehensive descriptions of Kubernetes resources
-- **Pod Logs**: Retrieve logs from specific pods 
-- **Node Metrics**: Get resource usage metrics for specific nodes
-- **Pod Metrics**: Get CPU and Memory metrics for specific pods
+- **API Resource Discovery**: Get all available API resources in your Kubernetes cluster.
+- **Resource Listing**: List resources of any type with optional namespace and label filtering.
+- **Resource Details**: Get detailed information about specific Kubernetes resources.
+- **Resource Description**: Get comprehensive descriptions of Kubernetes resources, similar to `kubectl describe`.
+- **Pod Logs**: Retrieve logs from specific pods (optionally from a specific container, or all containers if unspecified).
+- **Node Metrics**: Get resource usage metrics for specific nodes.
+- **Pod Metrics**: Get CPU and Memory metrics for specific pods.
 - **Event Listing**: List events within a namespace or for a specific resource.
-- **Resource Creation**: Create new Kubernetes resources from a manifest.
-- **Standardized Interface**: Uses the MCP protocol for consistent tool interaction
-- **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes
+- **Resource Creation/Updating**: Create new Kubernetes resources or update existing ones from a YAML or JSON manifest.
+- **Standardized Interface**: Uses the MCP protocol for consistent tool interaction.
+- **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes.
+- **Multiple Modes**: Run in `stdio` mode for CLI tools or `sse` mode for web applications.
 
 ## Prerequisites
 
@@ -24,32 +25,130 @@ A Kubernetes Model Context Protocol (MCP) server that provides tools for interac
 
 ## Installation
 
-1. Clone the repository:
-```bash
-git clone https://github.com/reza-gholizade/k8s-mcp-server.git
-cd k8s-mcp-server
-```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/reza-gholizade/k8s-mcp-server.git
+    cd k8s-mcp-server
+    ```
 
-2. Install dependencies:
-```bash
-go mod download
-```
+2.  **Install dependencies:**
+    ```bash
+    go mod download
+    ```
 
-3. Build the server:
-```bash
-go build -o k8s-mcp-server main.go
-```
+3.  **Build the server:**
+    ```bash
+    go build -o k8s-mcp-server main.go
+    ```
 
 ## Usage
 
 ### Starting the Server
 
-Run the server:
+The server can run in two modes, configurable via command-line flags or environment variables.
+
+#### Stdio Mode (for CLI integrations)
+This mode uses standard input/output for communication.
+
 ```bash
-./k8s-mcp-server
+./k8s-mcp-server --mode stdio
+```
+Or using environment variables:
+```bash
+SERVER_MODE=stdio ./k8s-mcp-server
 ```
 
-The server will start and listen on stdin/stdout for MCP protocol messages.
+#### SSE Mode (for web applications)
+This mode starts an HTTP server with Server-Sent Events support.
+
+Default (port 8080):
+```bash
+./k8s-mcp-server --mode sse
+```
+Specify a port:
+```bash
+./k8s-mcp-server --mode sse --port 9090
+```
+Or using environment variables:
+```bash
+SERVER_MODE=sse SERVER_PORT=9090 ./k8s-mcp-server
+```
+If no mode is specified, it defaults to SSE on port 8080.
+
+### Using the Docker Image
+
+You can also run the server using the pre-built Docker image from Docker Hub.
+
+1.  **Pull the image:**
+    ```bash
+    docker pull ginnux/k8s-mcp-server:latest
+    ```
+    You can replace `latest` with a specific version tag (e.g., `1.0.0`).
+
+2.  **Run the container:**
+
+    *   **SSE Mode (default behavior of the image):**
+        ```bash
+        docker run -p 8080:8080 -v ~/.kube/config:/root/.kube/config:ro ginnux/k8s-mcp-server:latest
+        ```
+        This maps port 8080 of the container to port 8080 on your host and mounts your Kubernetes config read-only. The server will be available at `http://localhost:8080`. The image defaults to `sse` mode on port `8080`.
+
+    *   **Stdio Mode:**
+        ```bash
+        docker run -i --rm -v ~/.kube/config:/root/.kube/config:ro ginnux/k8s-mcp-server:latest --mode stdio
+        ```
+        The `-i` flag is important for interactive stdio communication. `--rm` cleans up the container after exit.
+
+    *   **Custom Port for SSE Mode:**
+        ```bash
+        docker run -p 9090:9090 -v ~/.kube/config:/root/.kube/config:ro ginnux/k8s-mcp-server:latest --mode sse --port 9090
+        ```
+
+#### Using with Docker Compose
+
+Create a `docker-compose.yml` file:
+```yaml
+version: '3.8'
+services:
+  k8s-mcp-server:
+    image: ginnux/k8s-mcp-server:latest # Or a specific version
+    container_name: k8s-mcp-server
+    ports:
+      - "8080:8080" # Host:Container, adjust if using a different SERVER_PORT
+    volumes:
+      - ~/.kube:/root/.kube:ro # Mount kubeconfig read-only
+    environment:
+      - KUBECONFIG=/root/.kube/config
+      - SERVER_MODE=sse # Default, can be 'stdio'
+      - SERVER_PORT=8080 # Port for SSE mode
+    restart: unless-stopped
+    # To run in stdio mode with docker-compose, you might need to adjust 'ports',
+    # add 'stdin_open: true' and 'tty: true', and potentially override the command.
+    # For example, to force stdio mode:
+    # command: ["--mode", "stdio"]
+```
+Then start with:
+```bash
+docker compose up -d
+```
+To see logs: `docker compose logs -f k8s-mcp-server`.
+
+#### Making API Calls (SSE Mode)
+Once the server is running in SSE mode, you can make JSON-RPC calls to its HTTP endpoint (e.g., `/` or `/rpc` depending on the `mcp-go` library's SSE server implementation):
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getAPIResources",
+  "params": {
+    "arguments": {
+      "includeNamespaceScoped": true,
+      "includeClusterScoped": true
+    }
+  }
+}' http://localhost:8080/
+```
+*(Note: The exact endpoint for JSON-RPC over HTTP when using the SSE server might depend on the `mcp-go` library version. If `/` doesn't work, try `/rpc`.)*
 
 ### Available Tools
 
@@ -58,8 +157,8 @@ The server will start and listen on stdin/stdout for MCP protocol messages.
 Retrieves all available API resources in the Kubernetes cluster.
 
 **Parameters:**
-- `includeNamespaceScoped` (boolean): Whether to include namespace-scoped resources (defaults to true)
-- `includeClusterScoped` (boolean): Whether to include cluster-scoped resources (defaults to true)
+- `includeNamespaceScoped` (boolean, optional): Whether to include namespace-scoped resources (defaults to true).
+- `includeClusterScoped` (boolean, optional): Whether to include cluster-scoped resources (defaults to true).
 
 **Example:**
 ```json
@@ -81,9 +180,9 @@ Retrieves all available API resources in the Kubernetes cluster.
 Lists all instances of a specific resource type.
 
 **Parameters:**
-- `Kind` (string, required): The kind of resource to list (e.g., "Pod", "Deployment")
-- `namespace` (string): The namespace to list resources from (if omitted, lists across all namespaces for namespaced resources)
-- `labelSelector` (string): Filter resources by label selector
+- `Kind` (string, required): The kind of resource to list (e.g., "Pod", "Deployment").
+- `namespace` (string, optional): The namespace to list resources from. If omitted, lists across all namespaces for namespaced resources (subject to RBAC).
+- `labelSelector` (string, optional): Filter resources by label selector (e.g., "app=nginx,env=prod").
 
 **Example:**
 ```json
@@ -106,9 +205,9 @@ Lists all instances of a specific resource type.
 Retrieves detailed information about a specific resource.
 
 **Parameters:**
-- `kind` (string, required): The kind of resource to get (e.g., "Pod", "Deployment")
-- `name` (string, required): The name of the resource to get
-- `namespace` (string): The namespace of the resource (if it's a namespaced resource)
+- `kind` (string, required): The kind of resource to get (e.g., "Pod", "Deployment").
+- `name` (string, required): The name of the resource to get.
+- `namespace` (string, optional): The namespace of the resource (required for namespaced resources).
 
 **Example:**
 ```json
@@ -128,12 +227,12 @@ Retrieves detailed information about a specific resource.
 
 #### 4. `describeResource`
 
-Describes a resource in the Kubernetes cluster based on given kind and name, similar to `kubectl describe`.
+Describes a resource in the Kubernetes cluster, similar to `kubectl describe`.
 
 **Parameters:**
-- `Kind` (string, required): The kind of resource to describe (e.g., "Pod", "Deployment")
-- `name` (string, required): The name of the resource to describe
-- `namespace` (string): The namespace of the resource (if it's a namespaced resource)
+- `Kind` (string, required): The kind of resource to describe (e.g., "Pod", "Deployment").
+- `name` (string, required): The name of the resource to describe.
+- `namespace` (string, optional): The namespace of the resource (required for namespaced resources).
 
 **Example:**
 ```json
@@ -153,11 +252,14 @@ Describes a resource in the Kubernetes cluster based on given kind and name, sim
 
 #### 5. `getPodsLogs`
 
-Retrieves the logs of a specific pod in the Kubernetes cluster.
+Retrieves the logs of a specific pod.
 
 **Parameters:**
-- `Name` (string, required): The name of the pod to get logs from.
-- `namespace` (string): The namespace of the pod (if it's a namespaced resource).
+- `Name` (string, required): The name of the pod.
+- `namespace` (string, required): The namespace of the pod.
+- `containerName` (string, optional): The specific container name within the pod. If omitted:
+    - If the pod has one container, its logs are fetched.
+    - If the pod has multiple containers, logs from all containers are fetched and concatenated.
 
 **Example:**
 ```json
@@ -168,7 +270,8 @@ Retrieves the logs of a specific pod in the Kubernetes cluster.
   "params": {
     "arguments": {
       "Name": "my-app-pod-12345",
-      "namespace": "production"
+      "namespace": "production",
+      "containerName": "main-container"
     }
   }
 }
@@ -176,10 +279,10 @@ Retrieves the logs of a specific pod in the Kubernetes cluster.
 
 #### 6. `getNodeMetrics`
 
-Retrieves resource usage metrics for a specific node in the Kubernetes cluster.
+Retrieves resource usage metrics for a specific node.
 
 **Parameters:**
-- `Name` (string, required): The name of the node to get metrics from.
+- `Name` (string, required): The name of the node.
 
 **Example:**
 ```json
@@ -197,7 +300,7 @@ Retrieves resource usage metrics for a specific node in the Kubernetes cluster.
 
 #### 7. `getPodMetrics`
 
-Retrieves CPU and Memory metrics for a specific pod in the Kubernetes cluster.
+Retrieves CPU and Memory metrics for a specific pod.
 
 **Parameters:**
 - `namespace` (string, required): The namespace of the pod.
@@ -220,12 +323,12 @@ Retrieves CPU and Memory metrics for a specific pod in the Kubernetes cluster.
 
 #### 8. `getEvents`
 
-Retrieves events for a specific namespace or resource in the Kubernetes cluster.
+Retrieves events for a specific namespace or resource.
 
 **Parameters:**
-- `namespace` (string): The namespace to get events from. If omitted, events from all namespaces are considered (if permitted by RBAC).
-- `resourceName` (string): The name of a specific resource (e.g., a Pod name) to filter events for.
-- `resourceKind` (string): The kind of the specific resource (e.g., "Pod") if `resourceName` is provided.
+- `namespace` (string, optional): The namespace to get events from. If omitted, events from all namespaces are considered (subject to RBAC).
+- `resourceName` (string, optional): The name of a specific resource (e.g., a Pod name) to filter events for.
+- `resourceKind` (string, optional): The kind of the specific resource (e.g., "Pod") if `resourceName` is provided.
 
 **Example (Namespace Events):**
 ```json
@@ -257,20 +360,20 @@ Retrieves events for a specific namespace or resource in the Kubernetes cluster.
 }
 ```
 
-#### 9. `createorUpdateResource`
+#### 9. `createOrUpdateResource`
 
-Creates a new resource in the Kubernetes cluster from a YAML or JSON manifest.
+Creates a new resource or updates an existing one from a YAML or JSON manifest.
 
 **Parameters:**
-- `manifest` (string, required): The YAML or JSON manifest of the resource to create.
-- `namespace` (string, optional): The namespace in which to create the resource. If the manifest contains a namespace, this parameter can be omitted or used to override it (behavior might depend on server implementation).
+- `manifest` (string, required): The YAML or JSON manifest of the resource.
+- `namespace` (string, optional): The namespace in which to create/update the resource. If the manifest contains a namespace, this parameter can be used to override it. If not provided and the manifest doesn't specify one, "default" might be assumed or it might be an error depending on the resource type.
 
 **Example:**
 ```json
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "createResource",
+  "method": "createOrUpdateResource",
   "params": {
     "arguments": {
       "namespace": "default",
@@ -286,22 +389,26 @@ Creates a new resource in the Kubernetes cluster from a YAML or JSON manifest.
 
 ```
 .
-├── handlers/         # Tool handlers
-│   └── handlers.go   # Implementation of MCP tools
-├── pkg/             # Internal packages
-│   └── k8s/         # Kubernetes client implementation
-├── main.go          # Server entry point
-├── go.mod           # Go module definition
-└── go.sum           # Go module checksums
+├── .github/workflows/  # GitHub Actions workflows
+│   └── docker-build-push.yml
+├── handlers/           # Tool handlers and tool definitions
+│   └── handlers.go
+├── pkg/                # Internal packages
+│   └── k8s/            # Kubernetes client implementation
+├── tools/              # MCP Tool definitions
+│   └── tools.go
+├── main.go             # Server entry point
+├── go.mod              # Go module definition
+├── go.sum              # Go module checksums
+├── Dockerfile          # Docker build definition
+└── docker-compose.yml  # Docker Compose definition (example)
 ```
 
 ### Adding New Tools
 
-To add a new tool:
-
-1. Create a new tool definition function (e.g., `MyNewTool() mcp.Tool`) in `handlers/handlers.go`
-2. Implement the tool handler function (e.g., `MyNewHandler(client *k8s.Client) func(...)`) in `handlers/handlers.go`
-3. Register the tool and its handler in `main.go` using `s.AddTool()`
+1.  **Define the Tool**: In `tools/tools.go`, define a function that returns an `mcp.Tool` structure. This includes the tool's name, description, and input/output schemas.
+2.  **Implement the Handler**: In `handlers/handlers.go`, create a handler function. This function takes `*k8s.Client` as an argument and returns a function with the signature `func(context.Context, mcp.ToolInput) (mcp.ToolOutput, error)`. This inner function will contain the logic for your tool.
+3.  **Register the Tool**: In `main.go`, add your new tool to the MCP server instance using `s.AddTool(tools.YourToolDefinitionFunction(), handlers.YourToolHandlerFunction(client))`.
 
 ## Contributing
 
@@ -314,3 +421,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <a href="https://glama.ai/mcp/servers/@reza-gholizade/k8s-mcp-server">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@reza-gholizade/k8s-mcp-server/badge" />
+</a>

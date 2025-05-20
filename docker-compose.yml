@@ -5,17 +5,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: k8s-mcp-server:latest
+    image: k8s-mcp-server:latest # This image will be built using the Dockerfile in the current context
     container_name: k8s-mcp-server
     ports:
-      - "8080:8080"
+      - "8080:8080" # Adjust host port if SERVER_PORT is different and you want to map it
     volumes:
-      - ${HOME}/.kube:/root/.kube
+      - ${HOME}/.kube:/root/.kube:ro # Mount kubeconfig as read-only
     environment:
       - KUBECONFIG=/root/.kube/config
+      - SERVER_MODE=sse # Explicitly set server mode (sse or stdio)
+      - SERVER_PORT=8080 # Explicitly set server port for SSE mode
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      # Ensure 'curl' is installed in your Docker image (e.g., RUN apk --no-cache add curl in Dockerfile)
+      test: ["CMD", "curl", "-f", "-s", "http://localhost:8080/"] # Check if the server responds on the root path
       interval: 30s
       timeout: 10s
       retries: 3
