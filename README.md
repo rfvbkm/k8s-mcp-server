@@ -448,3 +448,104 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <a href="https://glama.ai/mcp/servers/@reza-gholizade/k8s-mcp-server">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@reza-gholizade/k8s-mcp-server/badge" />
 </a>
+
+## VS Code Integration
+
+### Quick Setup
+
+#### Automatic Installation (Recommended)
+
+**macOS/Linux:**
+```bash
+curl -sSL https://raw.githubusercontent.com/reza-gholizade/k8s-mcp-server/main/scripts/install-vscode-config.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/reza-gholizade/k8s-mcp-server/main/scripts/install-vscode-config.ps1'))
+```
+
+#### Manual Installation
+
+1. **Install the MCP extension in VS Code:**
+   ```bash
+   code --install-extension modelcontextprotocol.mcp
+   ```
+
+2. **Add to your VS Code settings.json:**
+
+   Open VS Code settings (Cmd/Ctrl + ,) → Open Settings JSON → Add:
+
+   **macOS/Linux:**
+   ```json
+   {
+     "mcp.mcpServers": {
+       "k8s-mcp-server": {
+         "command": "k8s-mcp-server",
+         "args": ["--mode", "stdio"],
+         "env": {
+           "KUBECONFIG": "${env:HOME}/.kube/config"
+         }
+       }
+     }
+   }
+   ```
+
+   **Windows:**
+   ```json
+   {
+     "mcp.mcpServers": {
+       "k8s-mcp-server": {
+         "command": "k8s-mcp-server.exe",
+         "args": ["--mode", "stdio"],
+         "env": {
+           "KUBECONFIG": "${env:USERPROFILE}/.kube/config"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Ensure the binary is in your PATH:**
+   
+   Download the appropriate binary from the [releases page](https://github.com/reza-gholizade/k8s-mcp-server/releases) and add it to your system PATH.
+
+4. **Restart VS Code**
+
+### Usage in VS Code
+
+Once configured, you can use the Kubernetes MCP server in VS Code with Claude or other MCP-compatible tools:
+
+1. Open VS Code
+2. Access Claude (or other MCP-enabled AI assistant)
+3. Use natural language to interact with your Kubernetes cluster:
+   - "List all pods in the default namespace"
+   - "Show me the logs for pod nginx-123"
+   - "Get the CPU usage for worker-node-1"
+   - "Describe the deployment called my-app"
+
+### Configuration Options
+
+You can customize the configuration by modifying the settings:
+
+```json
+{
+  "mcp.mcpServers": {
+    "k8s-mcp-server": {
+      "command": "k8s-mcp-server",
+      "args": ["--mode", "stdio"],
+      "env": {
+        "KUBECONFIG": "/path/to/your/kubeconfig",
+        "KUBERNETES_CONTEXT": "your-context-name"
+      }
+    }
+  }
+}
+```
+
+### Troubleshooting
+
+- **Binary not found**: Ensure `k8s-mcp-server` is in your PATH
+- **Kubernetes connection issues**: Verify your `KUBECONFIG` path is correct
+- **Permission errors**: Ensure your kubeconfig has the necessary RBAC permissions
+- **Extension not loading**: Restart VS Code after configuration changes
