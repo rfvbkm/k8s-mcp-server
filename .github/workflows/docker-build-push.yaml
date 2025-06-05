@@ -27,19 +27,26 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
+          go-version: '1.23'
+          check-latest: true
 
       - name: Extract tag name
         id: get_tag
         run: echo "TAG_NAME=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Verify Go installation
+        run: |
+          go version
+          go env GOVERSION
 
       - name: Build binary
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
+          GOTOOLCHAIN: auto
         run: |
           binary_name="k8s-mcp-server"
           if [ "${{ matrix.os }}" = "windows" ]; then
@@ -101,11 +108,11 @@ jobs:
           tags: |
             ginnux/k8s-mcp-server:${{ steps.get_tag.outputs.TAG_NAME }}
             ginnux/k8s-mcp-server:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             TARGETOS=linux
-            TARGETARCH=amd64
+            TARGETARCH=auto
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   create-release:
     needs: [build-binaries, build-and-push-docker]
