@@ -108,9 +108,6 @@ jobs:
           tags: |
             ginnux/k8s-mcp-server:${{ steps.get_tag.outputs.TAG_NAME }}
             ginnux/k8s-mcp-server:latest
-          build-args: |
-            TARGETOS=linux
-            TARGETARCH=auto
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
