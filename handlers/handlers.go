@@ -11,37 +11,48 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// Helper functions for consistent parameter extraction
+func getStringArg(args map[string]interface{}, key string, defaultValue string) string {
+	if val, ok := args[key].(string); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func getBoolArg(args map[string]interface{}, key string, defaultValue bool) bool {
+	if val, ok := args[key].(bool); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func getRequiredStringArg(args map[string]interface{}, key string) (string, error) {
+	val, ok := args[key].(string)
+	if !ok || val == "" {
+		return "", fmt.Errorf("missing required parameter: %s", key)
+	}
+	return val, nil
+}
+
 // GetAPIResources returns a handler function for the getAPIResources tool.
 // It retrieves API resources from the Kubernetes cluster based on the provided
 // context and parameters (includeNamespaceScoped, includeClusterScoped).
 // The result is serialized to JSON and returned.
 func GetAPIResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// Helper function to extract string arguments with a default value
-		getStringArg := func(key string, defaultValue string) string {
-			if val, ok := request.Params.Arguments[key].(string); ok {
-				return val
-			}
-			return defaultValue
-		}
-
-		// Helper function to extract boolean arguments with a default value
-		getBoolArg := func(key string, defaultValue bool) bool {
-			if val, ok := request.Params.Arguments[key].(bool); ok {
-				return val
-			}
-			return defaultValue
-		}
-
 		// Extract arguments
-		clusterContext := getStringArg("context", "default")
-		includeNamespaceScoped := getBoolArg("includeNamespaceScoped", true)
-		includeClusterScoped := getBoolArg("includeClusterScoped", true)
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
+		}
+
+		includeNamespaceScoped := getBoolArg(args, "includeNamespaceScoped", true)
+		includeClusterScoped := getBoolArg(args, "includeClusterScoped", true)
 
 		// Fetch API resources
 		resources, err := client.GetAPIResources(ctx, includeNamespaceScoped, includeClusterScoped)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get API resources for context '%s': %w", clusterContext, err)
+			return nil, fmt.Errorf("failed to get API resources: %w", err)
 		}
 
 		// Serialize response to JSON
@@ -50,7 +61,7 @@ func GetAPIResources(client *k8s.Client) func(ctx context.Context, request mcp.C
 			return nil, fmt.Errorf("failed to serialize response: %w", err)
 		}
 
-		// Return JSON response using NewToolResultJSON
+		// Return JSON response using NewToolResultText
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
@@ -60,18 +71,19 @@ func GetAPIResources(client *k8s.Client) func(ctx context.Context, request mcp.C
 // namespace, and labelSelector. The result is serialized to JSON and returned.
 func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// Helper function to extract string arguments with a default value
-		getStringArg := func(key string, defaultValue string) string {
-			if val, ok := request.Params.Arguments[key].(string); ok {
-				return val
-			}
-			return defaultValue
+		// Extract arguments - using capital K to match your tools definition
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
 
-		// Extract arguments
-		kind := getStringArg("Kind", "")
-		namespace := getStringArg("namespace", "")
-		labelSelector := getStringArg("labelSelector", "")
+		kind, err := getRequiredStringArg(args, "Kind")
+		if err != nil {
+			return nil, err
+		}
+
+		namespace := getStringArg(args, "namespace", "")
+		labelSelector := getStringArg(args, "labelSelector", "")
 
 		// Fetch resources
 		resources, err := client.ListResources(ctx, kind, namespace, labelSelector, "")
@@ -85,7 +97,7 @@ func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 			return nil, fmt.Errorf("failed to serialize response: %w", err)
 		}
 
-		// Return JSON response using NewToolResultJSON
+		// Return JSON response using NewToolResultText
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
@@ -95,21 +107,26 @@ func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 // provided kind, name, and namespace. The result is serialized to JSON and returned.
 func GetResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		kind, ok := request.Params.Arguments["kind"].(string)
-		if !ok || kind == "" {
-			return nil, fmt.Errorf("missing required parameter: kind")
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
 
-		name, ok := request.Params.Arguments["name"].(string)
-		if !ok || name == "" {
-			return nil, fmt.Errorf("missing required parameter: name")
+		kind, err := getRequiredStringArg(args, "kind")
+		if err != nil {
+			return nil, err
 		}
 
-		namespace, _ := request.Params.Arguments["namespace"].(string)
+		name, err := getRequiredStringArg(args, "name")
+		if err != nil {
+			return nil, err
+		}
+
+		namespace := getStringArg(args, "namespace", "")
 
 		resource, err := client.GetResource(ctx, kind, name, namespace)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get resource '%s' of kind '%s': %w", name, kind, err)
 		}
 
 		jsonResponse, err := json.Marshal(resource)
@@ -127,18 +144,23 @@ func GetResources(client *k8s.Client) func(ctx context.Context, request mcp.Call
 // The result is serialized to JSON and returned.
 func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// Helper function to extract string arguments with a default value
-		getStringArg := func(key string, defaultValue string) string {
-			if val, ok := request.Params.Arguments[key].(string); ok {
-				return val
-			}
-			return defaultValue
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
 
-		// Extract arguments
-		kind := getStringArg("Kind", "")
-		name := getStringArg("name", "")
-		namespace := getStringArg("namespace", "")
+		// Extract arguments - using capital K to match your tools definition
+		kind, err := getRequiredStringArg(args, "Kind")
+		if err != nil {
+			return nil, err
+		}
+
+		name, err := getRequiredStringArg(args, "name")
+		if err != nil {
+			return nil, err
+		}
+
+		namespace := getStringArg(args, "namespace", "")
 
 		// Fetch resource description
 		resourceDescription, err := client.DescribeResource(ctx, kind, name, namespace)
@@ -152,7 +174,7 @@ func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp
 			return nil, fmt.Errorf("failed to serialize response: %w", err)
 		}
 
-		// Return JSON response using NewToolResultJSON
+		// Return JSON response using NewToolResultText
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
@@ -162,26 +184,31 @@ func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp
 // provided name and namespace. The result is serialized to JSON and returned.
 func GetPodsLogs(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		name, ok := request.Params.Arguments["Name"].(string)
-		if !ok || name == "" {
-			return nil, fmt.Errorf("missing required parameter: Name")
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
 
-		namespace, _ := request.Params.Arguments["namespace"].(string)
-		containerName, _ := request.Params.Arguments["containerName"].(string)
-
-
-		logs, err := client.GetPodsLogs(ctx, namespace, containerName, name)
+		// Using capital N to match your tools definition
+		name, err := getRequiredStringArg(args, "Name")
 		if err != nil {
 			return nil, err
 		}
 
-		jsonResponse, err := json.Marshal(logs)
+		namespace, err := getRequiredStringArg(args, "namespace")
 		if err != nil {
-			return nil, fmt.Errorf("failed to serialize response: %w", err)
+			return nil, err
 		}
 
-		return mcp.NewToolResultText(string(jsonResponse)), nil
+		containerName := getStringArg(args, "containerName", "")
+
+		logs, err := client.GetPodsLogs(ctx, namespace, containerName, name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get logs for pod '%s': %w", name, err)
+		}
+
+		// Return logs as plain text instead of JSON for better readability
+		return mcp.NewToolResultText(logs), nil
 	}
 }
 
@@ -191,14 +218,20 @@ func GetPodsLogs(client *k8s.Client) func(ctx context.Context, request mcp.CallT
 // and returned.
 func GetNodeMetrics(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		name, ok := request.Params.Arguments["Name"].(string)
-		if !ok || name == "" {
-			return nil, fmt.Errorf("missing required parameter: Name")
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
+		}
+
+		// Using capital N to match your tools definition
+		name, err := getRequiredStringArg(args, "Name")
+		if err != nil {
+			return nil, err
 		}
 
 		resourceUsage, err := client.GetNodeMetrics(ctx, name)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get metrics for node '%s': %w", name, err)
 		}
 
 		jsonResponse, err := json.Marshal(resourceUsage)
@@ -216,19 +249,24 @@ func GetNodeMetrics(client *k8s.Client) func(ctx context.Context, request mcp.Ca
 // serialized to JSON and returned.
 func GetPodMetrics(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		namespace, ok := request.Params.Arguments["namespace"].(string)
-		if !ok || namespace == "" {
-			return nil, fmt.Errorf("missing required parameter: namespace")
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
 
-		podName, ok := request.Params.Arguments["podName"].(string)
-		if !ok || podName == "" {
-			return nil, fmt.Errorf("missing required parameter: podName")
+		namespace, err := getRequiredStringArg(args, "namespace")
+		if err != nil {
+			return nil, err
+		}
+
+		podName, err := getRequiredStringArg(args, "podName")
+		if err != nil {
+			return nil, err
 		}
 
 		metrics, err := client.GetPodMetrics(ctx, namespace, podName)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get metrics for pod '%s' in namespace '%s': %w", podName, namespace, err)
 		}
 
 		jsonResponse, err := json.Marshal(metrics)
@@ -245,14 +283,16 @@ func GetPodMetrics(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 // namespace and labelSelector. The result is serialized to JSON and returned.
 func GetEvents(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		namespace, ok := request.Params.Arguments["namespace"].(string)
-		if !ok || namespace == "" {
-			return nil, fmt.Errorf("missing required parameter: namespace")
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
+
+		namespace := getStringArg(args, "namespace", "")
 
 		events, err := client.GetEvents(ctx, namespace)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get events: %w", err)
 		}
 
 		jsonResponse, err := json.Marshal(events)
@@ -264,26 +304,27 @@ func GetEvents(client *k8s.Client) func(ctx context.Context, request mcp.CallToo
 	}
 }
 
-// Create or Update Resource returns a handler function for the createResource tool.
-// It creates or Updates  a resource in the Kubernetes cluster based on the provided kind,
-// name, namespace, and manifest. The result is serialized to JSON and returned.
+// CreateOrUpdateResource returns a handler function for the createOrUpdateResource tool.
+// It creates or updates a resource in the Kubernetes cluster based on the provided
+// namespace and manifest. The result is serialized to JSON and returned.
 func CreateOrUpdateResource(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		kind, ok := request.Params.Arguments["kind"].(string)
-		if !ok || kind == "" {
-			return nil, fmt.Errorf("missing required parameter: kind")
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
 
-		namespace, _ := request.Params.Arguments["namespace"].(string)
-
-		manifest, ok := request.Params.Arguments["manifest"].(string)
-		if !ok || manifest == "" {
-			return nil, fmt.Errorf("missing required parameter: manifest")
-		}
-
-		resource, err := client.CreateOrUpdateResource(ctx, kind, namespace, manifest)
+		manifest, err := getRequiredStringArg(args, "manifest")
 		if err != nil {
 			return nil, err
+		}
+
+		namespace := getStringArg(args, "namespace", "")
+		resourceName := getStringArg(args, "resourceName", "")
+
+		resource, err := client.CreateOrUpdateResource(ctx, namespace, manifest, resourceName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create or update resource: %w", err)
 		}
 
 		jsonResponse, err := json.Marshal(resource)
