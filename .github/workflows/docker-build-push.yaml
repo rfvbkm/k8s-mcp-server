@@ -39,26 +39,35 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
         run: |
           binary_name="k8s-mcp-server"
           if [ "${{ matrix.os }}" = "windows" ]; then
             binary_name="${binary_name}.exe"
           fi
-          go build -o ${binary_name} main.go
+          
+          echo "Building for ${{ matrix.os }}/${{ matrix.arch }}"
+          go build -ldflags="-w -s" -o ${binary_name} main.go
+          
+          # Verify binary was created
+          ls -la ${binary_name}
           
           # Create archive
           archive_name="k8s-mcp-server-${{ steps.get_tag.outputs.TAG_NAME }}-${{ matrix.os }}-${{ matrix.arch }}"
           if [ "${{ matrix.os }}" = "windows" ]; then
             zip ${archive_name}.zip ${binary_name}
+            echo "Created ${archive_name}.zip"
           else
             tar -czf ${archive_name}.tar.gz ${binary_name}
+            echo "Created ${archive_name}.tar.gz"
           fi
 
       - name: Upload binaries as artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: binaries
+          name: binary-${{ matrix.os }}-${{ matrix.arch }}
           path: k8s-mcp-server-*
+          retention-days: 30
 
   build-and-push-docker:
     runs-on: ubuntu-latest
@@ -94,28 +103,38 @@ jobs:
             ginnux/k8s-mcp-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            TARGETOS=linux
+            TARGETARCH=amd64
 
   create-release:
     needs: [build-binaries, build-and-push-docker]
     runs-on: ubuntu-latest
     
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: binaries
-
       - name: Extract tag name
         id: get_tag
         run: echo "TAG_NAME=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          files: k8s-mcp-server-*
+          path: ./artifacts
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: |
+          echo "Downloaded files:"
+          find ./artifacts -type f -name "k8s-mcp-server-*" | sort
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/k8s-mcp-server-*
           tag_name: v${{ steps.get_tag.outputs.TAG_NAME }}
           name: Release v${{ steps.get_tag.outputs.TAG_NAME }}
           draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

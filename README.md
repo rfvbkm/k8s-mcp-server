@@ -16,10 +16,11 @@ A Kubernetes Model Context Protocol (MCP) server that provides tools for interac
 - **Standardized Interface**: Uses the MCP protocol for consistent tool interaction.
 - **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes.
 - **Multiple Modes**: Run in `stdio` mode for CLI tools or `sse` mode for web applications.
+- **Security**: Runs as non-root user in Docker containers for enhanced security.
 
 ## Prerequisites
 
-- Go 1.20 or later
+- Go 1.23 or later
 - Access to a Kubernetes cluster
 - `kubectl` configured with appropriate cluster access
 
@@ -89,19 +90,24 @@ You can also run the server using the pre-built Docker image from Docker Hub.
 
     *   **SSE Mode (default behavior of the image):**
         ```bash
-        docker run -p 8080:8080 -v ~/.kube/config:/root/.kube/config:ro ginnux/k8s-mcp-server:latest
+        docker run -p 8080:8080 -v ~/.kube/config:/home/appuser/.kube/config:ro ginnux/k8s-mcp-server:latest
         ```
-        This maps port 8080 of the container to port 8080 on your host and mounts your Kubernetes config read-only. The server will be available at `http://localhost:8080`. The image defaults to `sse` mode on port `8080`.
+        This maps port 8080 of the container to port 8080 on your host and mounts your Kubernetes config read-only to the non-root user's home directory. The server will be available at `http://localhost:8080`. The image defaults to `sse` mode on port `8080`.
 
     *   **Stdio Mode:**
         ```bash
-        docker run -i --rm -v ~/.kube/config:/root/.kube/config:ro ginnux/k8s-mcp-server:latest --mode stdio
+        docker run -i --rm -v ~/.kube/config:/home/appuser/.kube/config:ro ginnux/k8s-mcp-server:latest --mode stdio
         ```
         The `-i` flag is important for interactive stdio communication. `--rm` cleans up the container after exit.
 
     *   **Custom Port for SSE Mode:**
         ```bash
-        docker run -p 9090:9090 -v ~/.kube/config:/root/.kube/config:ro ginnux/k8s-mcp-server:latest --mode sse --port 9090
+        docker run -p 9090:9090 -v ~/.kube/config:/home/appuser/.kube/config:ro ginnux/k8s-mcp-server:latest --mode sse --port 9090
+        ```
+
+    *   **Alternative: Mount entire .kube directory:**
+        ```bash
+        docker run -p 8080:8080 -v ~/.kube:/home/appuser/.kube:ro ginnux/k8s-mcp-server:latest
         ```
 
 #### Using with Docker Compose
@@ -116,16 +122,24 @@ services:
     ports:
       - "8080:8080" # Host:Container, adjust if using a different SERVER_PORT
     volumes:
-      - ~/.kube:/root/.kube:ro # Mount kubeconfig read-only
+      - ~/.kube:/home/appuser/.kube:ro # Mount kubeconfig read-only to non-root user home
     environment:
-      - KUBECONFIG=/root/.kube/config
+      - KUBECONFIG=/home/appuser/.kube/config
       - SERVER_MODE=sse # Default, can be 'stdio'
       - SERVER_PORT=8080 # Port for SSE mode
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     # To run in stdio mode with docker-compose, you might need to adjust 'ports',
     # add 'stdin_open: true' and 'tty: true', and potentially override the command.
     # For example, to force stdio mode:
     # command: ["--mode", "stdio"]
+    # stdin_open: true
+    # tty: true
 ```
 Then start with:
 ```bash
@@ -133,8 +147,16 @@ docker compose up -d
 ```
 To see logs: `docker compose logs -f k8s-mcp-server`.
 
+#### Security Considerations
+
+The Docker image runs as a non-root user (`appuser` with UID 1001) for enhanced security:
+- The application binary is located at `/usr/local/bin/k8s-mcp-server`
+- The kubeconfig should be mounted to `/home/appuser/.kube/config`
+- Health checks are enabled to monitor container status
+- The container includes minimal dependencies (ca-certificates and curl only)
+
 #### Making API Calls (SSE Mode)
-Once the server is running in SSE mode, you can make JSON-RPC calls to its HTTP endpoint (e.g., `/` or `/rpc` depending on the `mcp-go` library's SSE server implementation):
+Once the server is running in SSE mode, you can make JSON-RPC calls to its HTTP endpoint:
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{
   "jsonrpc": "2.0",
@@ -148,7 +170,11 @@ curl -X POST -H "Content-Type: application/json" -d '{
   }
 }' http://localhost:8080/
 ```
-*(Note: The exact endpoint for JSON-RPC over HTTP when using the SSE server might depend on the `mcp-go` library version. If `/` doesn't work, try `/rpc`.)*
+
+You can also check the health status:
+```bash
+curl -f http://localhost:8080/
+```
 
 ### Available Tools
 
