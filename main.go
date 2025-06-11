@@ -15,6 +15,7 @@ import (
 	"os"
 
 	"github.com/reza-gholizade/k8s-mcp-server/handlers"
+	"github.com/reza-gholizade/k8s-mcp-server/pkg/helm"
 	"github.com/reza-gholizade/k8s-mcp-server/pkg/k8s"
 	"github.com/reza-gholizade/k8s-mcp-server/tools"
 
@@ -27,14 +28,14 @@ func main() {
 	// Parse command line flags
 	var mode string
 	var port string
-	
+
 	flag.StringVar(&port, "port", getEnvOrDefault("SERVER_PORT", "8080"), "Server port")
 	flag.StringVar(&mode, "mode", getEnvOrDefault("SERVER_MODE", "sse"), "Server mode: 'stdio' or 'sse'")
 	flag.Parse()
 
 	// Create MCP server
 	s := server.NewMCPServer(
-		" MCP K8S Server",
+		"MCP K8S & Helm Server",
 		"1.0.0",
 		server.WithResourceCapabilities(true, true), // Enable resource listing and subscription capabilities
 	)
@@ -46,7 +47,14 @@ func main() {
 		return
 	}
 
-	// Register the tool and its handler with the server
+	// Create Helm client with default kubeconfig path
+	helmClient, err := helm.NewClient("")
+	if err != nil {
+		fmt.Printf("Failed to create Helm client: %v\n", err)
+		return
+	}
+
+	// Register Kubernetes tools
 	s.AddTool(tools.GetAPIResourcesTool(), handlers.GetAPIResources(client))
 	s.AddTool(tools.ListResourcesTool(), handlers.ListResources(client))
 	s.AddTool(tools.GetResourcesTool(), handlers.GetResources(client))
@@ -56,6 +64,15 @@ func main() {
 	s.AddTool(tools.GetPodMetricsTool(), handlers.GetPodMetrics(client))
 	s.AddTool(tools.GetEventsTool(), handlers.GetEvents(client))
 	s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
+
+	// Register Helm tools
+	s.AddTool(tools.HelmInstallTool(), handlers.HelmInstall(helmClient))
+	s.AddTool(tools.HelmUpgradeTool(), handlers.HelmUpgrade(helmClient))
+	s.AddTool(tools.HelmUninstallTool(), handlers.HelmUninstall(helmClient))
+	s.AddTool(tools.HelmListTool(), handlers.HelmList(helmClient))
+	s.AddTool(tools.HelmGetTool(), handlers.HelmGet(helmClient))
+	s.AddTool(tools.HelmHistoryTool(), handlers.HelmHistory(helmClient))
+	s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
 
 	// Start server based on mode
 	switch mode {

@@ -409,6 +409,66 @@ Creates a new resource or updates an existing one from a YAML or JSON manifest.
 }
 ```
 
+### Helm Operations
+
+#### 10. `helmInstall`
+
+Install a Helm chart to the Kubernetes cluster.
+
+**Parameters:**
+- `releaseName` (string, required): Name of the Helm release
+- `chartName` (string, required): Name or path of the Helm chart
+- `namespace` (string, optional): Kubernetes namespace for the release (defaults to "default")
+- `repoURL` (string, optional): Helm repository URL
+- `values` (object, optional): Values to override in the chart
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "helmInstall",
+  "params": {
+    "arguments": {
+      "releaseName": "my-nginx",
+      "chartName": "bitnami/nginx",
+      "namespace": "web",
+      "repoURL": "https://charts.bitnami.com/bitnami",
+      "values": {
+        "replicaCount": 3,
+        "service": {
+          "type": "LoadBalancer"
+        }
+      }
+    }
+  }
+}
+```
+
+#### 11. `helmUpgrade`
+
+Upgrade an existing Helm release.
+
+#### 12. `helmUninstall`
+
+Uninstall a Helm release from the Kubernetes cluster.
+
+#### 13. `helmList`
+
+List all Helm releases in the cluster or a specific namespace.
+
+#### 14. `helmGet`
+
+Get details of a specific Helm release.
+
+#### 15. `helmHistory`
+
+Get the history of a Helm release.
+
+#### 16. `helmRollback`
+
+Rollback a Helm release to a previous revision.
+
 ## Development
 
 ### Project Structure
