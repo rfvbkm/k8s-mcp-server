@@ -155,6 +155,18 @@ func (c *Client) ListReleases(ctx context.Context, namespace string) ([]*release
     if err != nil {
         return nil, fmt.Errorf("failed to list releases: %w", err)
     }
+    // remove useless fields from releases
+    for _, release := range releases {
+        release.Chart.Templates = nil
+        release.Chart.Files = nil
+        release.Chart.Values = nil
+        release.Chart.Schema = nil
+        release.Config = nil
+        release.Manifest = ""
+        release.Chart.Lock = nil
+        release.Hooks = nil
+    }
+
 
     return releases, nil
 }
