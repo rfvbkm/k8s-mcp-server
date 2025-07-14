@@ -250,3 +250,56 @@ func HelmRollback(client *helm.Client) func(ctx context.Context, request mcp.Cal
         return mcp.NewToolResultText(string(jsonResponse)), nil
     }
 }
+
+// HelmRepoAdd returns a handler function for the helmRepoAdd tool
+func HelmRepoAdd(client *helm.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+    return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        args, ok := request.Params.Arguments.(map[string]interface{})
+        if !ok {
+            return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
+        }
+
+        repoName, err := getRequiredStringArg(args, "repoName")
+        if err != nil {
+            return nil, err
+        }
+
+        repoURL, err := getRequiredStringArg(args, "repoURL")
+        if err != nil {
+            return nil, err
+        }
+
+        err = client.HelmRepoAdd(ctx, repoName, repoURL)
+        if err != nil {
+            return nil, fmt.Errorf("failed to add repository: %w", err)
+        }
+
+        response := map[string]interface{}{
+            "status": "success",
+            "message": fmt.Sprintf("Successfully added repository '%s' with URL '%s'", repoName, repoURL),
+        }
+
+        jsonResponse, err := json.Marshal(response)
+        if err != nil {
+            return nil, fmt.Errorf("failed to serialize response: %w", err)
+        }
+
+        return mcp.NewToolResultText(string(jsonResponse)), nil
+    }
+}
+
+func HelmRepoList(client *helm.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+    return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        repos, err := client.HelmRepoList(ctx)
+        if err != nil {
+            return nil, fmt.Errorf("failed to list repositories: %w", err)
+        }
+
+        jsonResponse, err := json.Marshal(repos)
+        if err != nil {
+            return nil, fmt.Errorf("failed to serialize response: %w", err)
+        }
+
+        return mcp.NewToolResultText(string(jsonResponse)), nil
+    }
+}

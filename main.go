@@ -73,6 +73,8 @@ func main() {
 	s.AddTool(tools.HelmGetTool(), handlers.HelmGet(helmClient))
 	s.AddTool(tools.HelmHistoryTool(), handlers.HelmHistory(helmClient))
 	s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
+	s.AddTool(tools.HelmRepoAddTool(), handlers.HelmRepoAdd(helmClient))
+	s.AddTool(tools.HelmRepoListTool(), handlers.HelmRepoList(helmClient))
 
 	// Start server based on mode
 	switch mode {

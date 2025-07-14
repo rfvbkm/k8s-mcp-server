@@ -71,3 +71,18 @@ func HelmRollbackTool() mcp.Tool {
 		mcp.WithNumber("revision",mcp.Required(), mcp.Description("Revision number to rollback to (0 for previous)")),
 	)
 }
+
+func HelmRepoAddTool() mcp.Tool {
+	return mcp.NewTool("helmRepoAdd",
+		mcp.WithDescription("Add a Helm repository"),
+		mcp.WithString("repoName", mcp.Required(), mcp.Description("Name of the Helm repository")),
+		mcp.WithString("repoURL", mcp.Required(), mcp.Description("URL of the Helm repository")),
+	)
+}
+
+func HelmRepoListTool() mcp.Tool {
+	return mcp.NewTool("helmRepoList",
+		mcp.WithDescription("List all Helm repositories"),
+	)
+}
+

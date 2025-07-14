@@ -82,7 +82,7 @@ func (c *Client) InstallChart(ctx context.Context, namespace, releaseName, chart
 
     // Add repository if specified
     if repoURL != "" {
-        if err := c.addRepo(chartName, repoURL); err != nil {
+        if err := c.HelmRepoAdd(ctx, chartName, repoURL); err != nil {
             return nil, fmt.Errorf("failed to add repository: %w", err)
         }
     }
@@ -219,7 +219,7 @@ func (c *Client) RollbackRelease(ctx context.Context, namespace, releaseName str
 }
 
 // addRepo adds a Helm repository
-func (c *Client) addRepo(name, url string) error {
+func (c *Client) HelmRepoAdd(ctx context.Context, name, url string) error {
     repoFile := c.settings.RepositoryConfig
 
     // Ensure the file directory exists
@@ -258,4 +258,13 @@ func (c *Client) addRepo(name, url string) error {
 
     f.Update(entry)
     return f.WriteFile(repoFile, 0644)
+}
+
+func (c *Client) HelmRepoList(ctx context.Context) ([]*repo.Entry, error) {
+    repoFile := c.settings.RepositoryConfig
+    f, err := repo.LoadFile(repoFile)
+    if err != nil {
+        return nil, fmt.Errorf("failed to load repository file: %w", err)
+    }
+    return f.Repositories, nil
 }
