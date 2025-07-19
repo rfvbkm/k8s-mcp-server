@@ -23,7 +23,8 @@ func HelmUpgradeTool() mcp.Tool {
 		mcp.WithString("releaseName", mcp.Required(), mcp.Description("Name of the Helm release to upgrade")),
 		mcp.WithString("chartName", mcp.Required(), mcp.Description("Name or path of the Helm chart")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
-		mcp.WithObject("values",mcp.Required(), mcp.Description("Values to override in the chart")),
+		mcp.WithObject("values", mcp.Required(), mcp.Description("Values to override in the chart")),
+		mcp.WithObject("repoURL", mcp.Required(), mcp.Description("URL of the Helm repository")),
 	)
 }
 
@@ -58,7 +59,7 @@ func HelmHistoryTool() mcp.Tool {
 	return mcp.NewTool("helmHistory",
 		mcp.WithDescription("Get the history of a Helm release"),
 		mcp.WithString("releaseName", mcp.Required(), mcp.Description("Name of the Helm release")),
-		mcp.WithString("namespace",mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
+		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
 	)
 }
 
@@ -68,7 +69,7 @@ func HelmRollbackTool() mcp.Tool {
 		mcp.WithDescription("Rollback a Helm release to a previous revision"),
 		mcp.WithString("releaseName", mcp.Required(), mcp.Description("Name of the Helm release to rollback")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
-		mcp.WithNumber("revision",mcp.Required(), mcp.Description("Revision number to rollback to (0 for previous)")),
+		mcp.WithNumber("revision", mcp.Required(), mcp.Description("Revision number to rollback to (0 for previous)")),
 	)
 }
 
@@ -85,4 +86,3 @@ func HelmRepoListTool() mcp.Tool {
 		mcp.WithDescription("List all Helm repositories"),
 	)
 }
-
