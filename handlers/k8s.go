@@ -320,9 +320,9 @@ func CreateOrUpdateResource(client *k8s.Client) func(ctx context.Context, reques
 		}
 
 		namespace := getStringArg(args, "namespace", "")
-		resourceName := getStringArg(args, "resourceName", "")
+		kind := getStringArg(args, "kind", "")
 
-		resource, err := client.CreateOrUpdateResource(ctx, namespace, manifest, resourceName)
+		resource, err := client.CreateOrUpdateResource(ctx, namespace, manifest, kind)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create or update resource: %w", err)
 		}

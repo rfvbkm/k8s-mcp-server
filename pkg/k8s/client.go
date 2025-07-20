@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -178,18 +180,21 @@ func (c *Client) ListResources(ctx context.Context, kind, namespace, labelSelect
 // (e.g., resource not found), it attempts to create the resource.
 // Requires the resource manifest to include a name.
 // Returns the unstructured content of the created/updated resource, or an error.
-func (c *Client) CreateOrUpdateResource(ctx context.Context, kind, namespace, manifest string) (map[string]interface{}, error) {
+func (c *Client) CreateOrUpdateResource(ctx context.Context, namespace, manifestJSON, kind string) (map[string]interface{}, error) {
+	// Decode JSON into unstructured object directly (no YAML conversion)
+
 	obj := &unstructured.Unstructured{}
-	if err := json.Unmarshal([]byte(manifest), &obj.Object); err != nil {
-		return nil, fmt.Errorf("failed to parse resource manifest: %w", err)
+	if err := json.Unmarshal([]byte(manifestJSON), &obj.Object); err != nil {
+		return nil, fmt.Errorf("failed to parse resource manifest JSON: %w", err)
 	}
 
+	// Determine the resource GVR
 	gvr, err := c.getCachedGVR(kind)
 	if err != nil {
 		return nil, err
 	}
 
-	var result *unstructured.Unstructured
+	// Set namespace if provided
 	if namespace != "" {
 		obj.SetNamespace(namespace)
 	}
@@ -198,13 +203,22 @@ func (c *Client) CreateOrUpdateResource(ctx context.Context, kind, namespace, ma
 		return nil, fmt.Errorf("resource name is required")
 	}
 
-	// Try to update the resource; if it doesn't exist, create it
-	result, err = c.dynamicClient.Resource(*gvr).Namespace(obj.GetNamespace()).Update(ctx, obj, metav1.UpdateOptions{})
-	if err != nil {
-		result, err = c.dynamicClient.Resource(*gvr).Namespace(obj.GetNamespace()).Create(ctx, obj, metav1.CreateOptions{})
+	resource := c.dynamicClient.Resource(*gvr).Namespace(obj.GetNamespace())
+
+	// Try to patch; if not found, create
+	rawJSON := []byte(manifestJSON) // manifestJSON is already JSON
+	result, err := resource.Patch(
+		ctx,
+		obj.GetName(),
+		types.MergePatchType,
+		rawJSON,
+		metav1.PatchOptions{},
+	)
+	if errors.IsNotFound(err) {
+		result, err = resource.Create(ctx, obj, metav1.CreateOptions{})
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to create or update resource: %w", err)
+		return nil, fmt.Errorf("failed to create or patch resource: %w", err)
 	}
 
 	return result.UnstructuredContent(), nil
