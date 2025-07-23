@@ -17,7 +17,6 @@ func GetAPIResourcesTool() mcp.Tool {
 			"GetAPIResourcesHandler handles the getAPIResources tool\n"+
 			"It retrieves the API resources from the Kubernetes cluster\n"+
 			"and returns them as a response.\n"+
-			"e.g. 'beta' or 'prod'.\n"+
 			"The function returns a mcp.CallToolResult containing the API resources\n"+
 			"or an error if the operation fails.\n"+
 			"The function also handles the inclusion of namespace scoped\n"+
