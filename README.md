@@ -469,27 +469,6 @@ Get the history of a Helm release.
 
 Rollback a Helm release to a previous revision.
 
-## Development
-
-### Project Structure
-
-```
-.
-├── .github/workflows/  # GitHub Actions workflows
-│   └── docker-build-push.yml
-├── handlers/           # Tool handlers and tool definitions
-│   └── handlers.go
-├── pkg/                # Internal packages
-│   └── k8s/            # Kubernetes client implementation
-├── tools/              # MCP Tool definitions
-│   └── tools.go
-├── main.go             # Server entry point
-├── go.mod              # Go module definition
-├── go.sum              # Go module checksums
-├── Dockerfile          # Docker build definition
-└── docker-compose.yml  # Docker Compose definition (example)
-```
-
 ### Adding New Tools
 
 1.  **Define the Tool**: In `tools/tools.go`, define a function that returns an `mcp.Tool` structure. This includes the tool's name, description, and input/output schemas.
