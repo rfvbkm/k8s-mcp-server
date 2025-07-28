@@ -17,7 +17,10 @@ services:
       - KUBECONFIG=/root/.kube/config
       - SERVER_MODE=sse # Explicitly set server mode (stdio, sse, or streamable-http)
       - SERVER_PORT=8080 # Explicitly set server port for SSE mode
-    # command: ["--read-only"] # Uncomment this line to enable read-only mode
+    # command: ["--read-only"] # Uncomment to enable read-only mode
+    # command: ["--no-k8s"] # Uncomment to disable Kubernetes tools
+    # command: ["--no-helm"] # Uncomment to disable Helm tools
+    # command: ["--read-only", "--no-helm"] # Uncomment for read-only with only Kubernetes tools
     restart: unless-stopped
     healthcheck:
       # Ensure 'curl' is installed in your Docker image (e.g., RUN apk --no-cache add curl in Dockerfile)

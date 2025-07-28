@@ -127,6 +127,43 @@ When read-only mode is enabled, the following tools are disabled:
 
 All other read-only operations remain available, including listing resources, getting logs, viewing metrics, and inspecting Helm releases.
 
+#### Tool Category Flags
+You can selectively disable entire categories of tools using these flags:
+
+**Disable Kubernetes Tools:**
+```bash
+./k8s-mcp-server --no-k8s
+```
+
+**Disable Helm Tools:**
+```bash
+./k8s-mcp-server --no-helm
+```
+
+**Combine with other flags:**
+```bash
+# Read-only mode with only Kubernetes tools (no Helm)
+./k8s-mcp-server --read-only --no-helm
+
+# Read-only mode with only Helm tools (no Kubernetes)
+./k8s-mcp-server --read-only --no-k8s
+
+# SSE mode with only Kubernetes tools
+./k8s-mcp-server --mode sse --no-helm
+
+```
+
+**Note:** You cannot use both `--no-k8s` and `--no-helm` together, as this would result in no available tools. The server will exit with an error if both flags are provided.
+
+When `--no-k8s` is enabled, all Kubernetes tools are disabled:
+- `getAPIResources`, `listResources`, `getResource`, `describeResource`
+- `getPodsLogs`, `getNodeMetrics`, `getPodMetrics`, `getEvents`
+- `createResource` (if not in read-only mode)
+
+When `--no-helm` is enabled, all Helm tools are disabled:
+- `helmList`, `helmGet`, `helmHistory`, `helmRepoList`
+- `helmInstall`, `helmUpgrade`, `helmUninstall`, `helmRollback`, `helmRepoAdd` (if not in read-only mode)
+
 ### Using the Docker Image
 
 You can also run the server using the pre-built Docker image from Docker Hub.
@@ -603,6 +640,51 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercon
        "k8s-mcp-server": {
          "command": "k8s-mcp-server",
          "args": ["--mode", "stdio", "--read-only"],
+         "env": {
+           "KUBECONFIG": "${env:HOME}/.kube/config"
+         }
+       }
+     }
+   }
+   ```
+
+   **Kubernetes Tools Only:**
+   ```json
+   {
+     "mcp.mcpServers": {
+       "k8s-mcp-server": {
+         "command": "k8s-mcp-server",
+         "args": ["--mode", "stdio", "--no-helm"],
+         "env": {
+           "KUBECONFIG": "${env:HOME}/.kube/config"
+         }
+       }
+     }
+   }
+   ```
+
+   **Helm Tools Only:**
+   ```json
+   {
+     "mcp.mcpServers": {
+       "k8s-mcp-server": {
+         "command": "k8s-mcp-server",
+         "args": ["--mode", "stdio", "--no-k8s"],
+         "env": {
+           "KUBECONFIG": "${env:HOME}/.kube/config"
+         }
+       }
+     }
+   }
+   ```
+
+   **Read-Only with Kubernetes Tools Only:**
+   ```json
+   {
+     "mcp.mcpServers": {
+       "k8s-mcp-server": {
+         "command": "k8s-mcp-server",
+         "args": ["--mode", "stdio", "--read-only", "--no-helm"],
          "env": {
            "KUBECONFIG": "${env:HOME}/.kube/config"
          }
