@@ -15,7 +15,7 @@ services:
       - ${HOME}/.kube:/root/.kube:ro # Mount kubeconfig as read-only
     environment:
       - KUBECONFIG=/root/.kube/config
-      - SERVER_MODE=sse # Explicitly set server mode (sse or stdio)
+      - SERVER_MODE=sse # Explicitly set server mode (stdio, sse, or streamable-http)
       - SERVER_PORT=8080 # Explicitly set server port for SSE mode
     restart: unless-stopped
     healthcheck:

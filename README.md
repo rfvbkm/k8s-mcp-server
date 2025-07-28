@@ -15,7 +15,7 @@ A Kubernetes Model Context Protocol (MCP) server that provides tools for interac
 - **Resource Creation/Updating**: Create new Kubernetes resources or update existing ones from a YAML or JSON manifest.
 - **Standardized Interface**: Uses the MCP protocol for consistent tool interaction.
 - **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes.
-- **Multiple Modes**: Run in `stdio` mode for CLI tools or `sse` mode for web applications.
+- **Multiple Modes**: Run in `stdio` mode for CLI tools, `sse` mode, or `streamable-http` mode for web applications.
 - **Security**: Runs as non-root user in Docker containers for enhanced security.
 
 ## Prerequisites
@@ -46,7 +46,7 @@ A Kubernetes Model Context Protocol (MCP) server that provides tools for interac
 
 ### Starting the Server
 
-The server can run in two modes, configurable via command-line flags or environment variables.
+The server can run in three modes, configurable via command-line flags or environment variables.
 
 #### Stdio Mode (for CLI integrations)
 This mode uses standard input/output for communication.
@@ -74,6 +74,24 @@ Or using environment variables:
 ```bash
 SERVER_MODE=sse SERVER_PORT=9090 ./k8s-mcp-server
 ```
+#### Streamable-HTTP Mode (for web applications)
+This mode starts an HTTP server with streamable-http transport support, following the MCP specification.
+
+Default (port 8080):
+```bash
+./k8s-mcp-server --mode streamable-http
+```
+Specify a port:
+```bash
+./k8s-mcp-server --mode streamable-http --port 9090
+```
+Or using environment variables:
+```bash
+SERVER_MODE=streamable-http SERVER_PORT=9090 ./k8s-mcp-server
+```
+
+The server will be available at `http://localhost:8080/mcp` (or your specified port).
+
 If no mode is specified, it defaults to SSE on port 8080.
 
 ### Using the Docker Image
@@ -94,6 +112,12 @@ You can also run the server using the pre-built Docker image from Docker Hub.
         ```
         This maps port 8080 of the container to port 8080 on your host and mounts your Kubernetes config read-only to the non-root user's home directory. The server will be available at `http://localhost:8080`. The image defaults to `sse` mode on port `8080`.
 
+    *   **Streamable-HTTP Mode:**
+        ```bash
+        docker run -p 8080:8080 -v ~/.kube/config:/home/appuser/.kube/config:ro ginnux/k8s-mcp-server:latest --mode streamable-http
+        ```
+        This runs the server in streamable-http mode. The server will be available at `http://localhost:8080/mcp`.
+
     *   **Stdio Mode:**
         ```bash
         docker run -i --rm -v ~/.kube/config:/home/appuser/.kube/config:ro ginnux/k8s-mcp-server:latest --mode stdio
@@ -103,6 +127,11 @@ You can also run the server using the pre-built Docker image from Docker Hub.
     *   **Custom Port for SSE Mode:**
         ```bash
         docker run -p 9090:9090 -v ~/.kube/config:/home/appuser/.kube/config:ro ginnux/k8s-mcp-server:latest --mode sse --port 9090
+        ```
+
+    *   **Custom Port for Streamable-HTTP Mode:**
+        ```bash
+        docker run -p 9090:9090 -v ~/.kube/config:/home/appuser/.kube/config:ro ginnux/k8s-mcp-server:latest --mode streamable-http --port 9090
         ```
 
     *   **Alternative: Mount entire .kube directory:**
@@ -125,8 +154,8 @@ services:
       - ~/.kube:/home/appuser/.kube:ro # Mount kubeconfig read-only to non-root user home
     environment:
       - KUBECONFIG=/home/appuser/.kube/config
-      - SERVER_MODE=sse # Default, can be 'stdio'
-      - SERVER_PORT=8080 # Port for SSE mode
+      - SERVER_MODE=sse # Can be 'stdio', 'sse', or 'streamable-http'
+      - SERVER_PORT=8080 # Port for SSE/streamable-http modes
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
@@ -140,6 +169,7 @@ services:
     # command: ["--mode", "stdio"]
     # stdin_open: true
     # tty: true
+    # For streamable-http mode, simply change SERVER_MODE to 'streamable-http'
 ```
 Then start with:
 ```bash
@@ -155,8 +185,8 @@ The Docker image runs as a non-root user (`appuser` with UID 1001) for enhanced 
 - Health checks are enabled to monitor container status
 - The container includes minimal dependencies (ca-certificates and curl only)
 
-#### Making API Calls (SSE Mode)
-Once the server is running in SSE mode, you can make JSON-RPC calls to its HTTP endpoint:
+#### Making API Calls (SSE/Streamable-HTTP Mode)
+Once the server is running in SSE or streamable-http mode, you can make JSON-RPC calls to its HTTP endpoint:
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{
   "jsonrpc": "2.0",
