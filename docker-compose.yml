@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   k8s-mcp-server:
@@ -17,6 +17,7 @@ services:
       - KUBECONFIG=/root/.kube/config
       - SERVER_MODE=sse # Explicitly set server mode (stdio, sse, or streamable-http)
       - SERVER_PORT=8080 # Explicitly set server port for SSE mode
+    # command: ["--read-only"] # Uncomment this line to enable read-only mode
     restart: unless-stopped
     healthcheck:
       # Ensure 'curl' is installed in your Docker image (e.g., RUN apk --no-cache add curl in Dockerfile)
