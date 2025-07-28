@@ -28,10 +28,17 @@ func main() {
 	// Parse command line flags
 	var mode string
 	var port string
+	var readOnly bool
 
 	flag.StringVar(&port, "port", getEnvOrDefault("SERVER_PORT", "8080"), "Server port")
 	flag.StringVar(&mode, "mode", getEnvOrDefault("SERVER_MODE", "sse"), "Server mode: 'stdio', 'sse', or 'streamable-http'")
+	flag.BoolVar(&readOnly, "read-only", false, "Enable read-only mode (disables write operations)")
 	flag.Parse()
+
+	// Log read-only mode status
+	if readOnly {
+		fmt.Println("Starting server in read-only mode - write operations disabled")
+	}
 
 	// Create MCP server
 	s := server.NewMCPServer(
@@ -63,18 +70,26 @@ func main() {
 	s.AddTool(tools.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
 	s.AddTool(tools.GetPodMetricsTool(), handlers.GetPodMetrics(client))
 	s.AddTool(tools.GetEventsTool(), handlers.GetEvents(client))
-	s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
+
+	// Register write operations only if not in read-only mode
+	if !readOnly {
+		s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
+	}
 
 	// Register Helm tools
-	s.AddTool(tools.HelmInstallTool(), handlers.HelmInstall(helmClient))
-	s.AddTool(tools.HelmUpgradeTool(), handlers.HelmUpgrade(helmClient))
-	s.AddTool(tools.HelmUninstallTool(), handlers.HelmUninstall(helmClient))
 	s.AddTool(tools.HelmListTool(), handlers.HelmList(helmClient))
 	s.AddTool(tools.HelmGetTool(), handlers.HelmGet(helmClient))
 	s.AddTool(tools.HelmHistoryTool(), handlers.HelmHistory(helmClient))
-	s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
-	s.AddTool(tools.HelmRepoAddTool(), handlers.HelmRepoAdd(helmClient))
 	s.AddTool(tools.HelmRepoListTool(), handlers.HelmRepoList(helmClient))
+
+	// Register write operations only if not in read-only mode
+	if !readOnly {
+		s.AddTool(tools.HelmInstallTool(), handlers.HelmInstall(helmClient))
+		s.AddTool(tools.HelmUpgradeTool(), handlers.HelmUpgrade(helmClient))
+		s.AddTool(tools.HelmUninstallTool(), handlers.HelmUninstall(helmClient))
+		s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
+		s.AddTool(tools.HelmRepoAddTool(), handlers.HelmRepoAdd(helmClient))
+	}
 
 	// Start server based on mode
 	switch mode {

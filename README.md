@@ -94,6 +94,39 @@ The server will be available at `http://localhost:8080/mcp` (or your specified p
 
 If no mode is specified, it defaults to SSE on port 8080.
 
+#### Read-Only Mode
+
+The server supports a read-only mode that disables all write operations, providing a safer way to explore and monitor your Kubernetes cluster without the risk of making changes.
+
+Enable read-only mode with the `--read-only` flag:
+
+```bash
+./k8s-mcp-server --read-only
+```
+
+You can combine read-only mode with any server mode:
+
+```bash
+# Read-only with stdio mode
+./k8s-mcp-server --mode stdio --read-only
+
+# Read-only with SSE mode
+./k8s-mcp-server --mode sse --read-only
+
+# Read-only with streamable-http mode
+./k8s-mcp-server --mode streamable-http --read-only
+```
+
+When read-only mode is enabled, the following tools are disabled:
+- `createResource` (Kubernetes resource creation/updates)
+- `helmInstall` (Helm chart installations)
+- `helmUpgrade` (Helm chart upgrades)
+- `helmUninstall` (Helm chart uninstallations)
+- `helmRollback` (Helm release rollbacks)
+- `helmRepoAdd` (Helm repository additions)
+
+All other read-only operations remain available, including listing resources, getting logs, viewing metrics, and inspecting Helm releases.
+
 ### Using the Docker Image
 
 You can also run the server using the pre-built Docker image from Docker Hub.
@@ -156,6 +189,7 @@ services:
       - KUBECONFIG=/home/appuser/.kube/config
       - SERVER_MODE=sse # Can be 'stdio', 'sse', or 'streamable-http'
       - SERVER_PORT=8080 # Port for SSE/streamable-http modes
+    # command: ["--read-only"] # Uncomment this line to enable read-only mode
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
@@ -171,6 +205,8 @@ services:
     # tty: true
     # For streamable-http mode, simply change SERVER_MODE to 'streamable-http'
 ```
+To enable read-only mode, use the `command` override as shown above.
+
 Then start with:
 ```bash
 docker compose up -d
@@ -560,6 +596,21 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercon
    }
    ```
 
+   **Read-Only Mode (recommended for safety):**
+   ```json
+   {
+     "mcp.mcpServers": {
+       "k8s-mcp-server": {
+         "command": "k8s-mcp-server",
+         "args": ["--mode", "stdio", "--read-only"],
+         "env": {
+           "KUBECONFIG": "${env:HOME}/.kube/config"
+         }
+       }
+     }
+   }
+   ```
+
    **Windows:**
    ```json
    {
@@ -576,7 +627,7 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercon
    ```
 
 3. **Ensure the binary is in your PATH:**
-   
+
    Download the appropriate binary from the [releases page](https://github.com/reza-gholizade/k8s-mcp-server/releases) and add it to your system PATH.
 
 4. **Restart VS Code**
