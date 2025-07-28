@@ -29,15 +29,33 @@ func main() {
 	var mode string
 	var port string
 	var readOnly bool
+	var noK8s bool
+	var noHelm bool
 
 	flag.StringVar(&port, "port", getEnvOrDefault("SERVER_PORT", "8080"), "Server port")
 	flag.StringVar(&mode, "mode", getEnvOrDefault("SERVER_MODE", "sse"), "Server mode: 'stdio', 'sse', or 'streamable-http'")
 	flag.BoolVar(&readOnly, "read-only", false, "Enable read-only mode (disables write operations)")
+	flag.BoolVar(&noK8s, "no-k8s", false, "Disable Kubernetes tools")
+	flag.BoolVar(&noHelm, "no-helm", false, "Disable Helm tools")
 	flag.Parse()
+
+	// Validate flag combinations
+	if noK8s && noHelm {
+		fmt.Println("Error: Cannot disable both Kubernetes and Helm tools. At least one tool category must be enabled.")
+		os.Exit(1)
+	}
 
 	// Log read-only mode status
 	if readOnly {
 		fmt.Println("Starting server in read-only mode - write operations disabled")
+	}
+
+	// Log disabled tool categories
+	if noK8s {
+		fmt.Println("Kubernetes tools disabled")
+	}
+	if noHelm {
+		fmt.Println("Helm tools disabled")
 	}
 
 	// Create MCP server
@@ -62,33 +80,37 @@ func main() {
 	}
 
 	// Register Kubernetes tools
-	s.AddTool(tools.GetAPIResourcesTool(), handlers.GetAPIResources(client))
-	s.AddTool(tools.ListResourcesTool(), handlers.ListResources(client))
-	s.AddTool(tools.GetResourcesTool(), handlers.GetResources(client))
-	s.AddTool(tools.DescribeResourcesTool(), handlers.DescribeResources(client))
-	s.AddTool(tools.GetPodsLogsTools(), handlers.GetPodsLogs(client))
-	s.AddTool(tools.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
-	s.AddTool(tools.GetPodMetricsTool(), handlers.GetPodMetrics(client))
-	s.AddTool(tools.GetEventsTool(), handlers.GetEvents(client))
+	if !noK8s {
+		s.AddTool(tools.GetAPIResourcesTool(), handlers.GetAPIResources(client))
+		s.AddTool(tools.ListResourcesTool(), handlers.ListResources(client))
+		s.AddTool(tools.GetResourcesTool(), handlers.GetResources(client))
+		s.AddTool(tools.DescribeResourcesTool(), handlers.DescribeResources(client))
+		s.AddTool(tools.GetPodsLogsTools(), handlers.GetPodsLogs(client))
+		s.AddTool(tools.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
+		s.AddTool(tools.GetPodMetricsTool(), handlers.GetPodMetrics(client))
+		s.AddTool(tools.GetEventsTool(), handlers.GetEvents(client))
 
-	// Register write operations only if not in read-only mode
-	if !readOnly {
-		s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
+		// Register write operations only if not in read-only mode
+		if !readOnly {
+			s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
+		}
 	}
 
 	// Register Helm tools
-	s.AddTool(tools.HelmListTool(), handlers.HelmList(helmClient))
-	s.AddTool(tools.HelmGetTool(), handlers.HelmGet(helmClient))
-	s.AddTool(tools.HelmHistoryTool(), handlers.HelmHistory(helmClient))
-	s.AddTool(tools.HelmRepoListTool(), handlers.HelmRepoList(helmClient))
+	if !noHelm {
+		s.AddTool(tools.HelmListTool(), handlers.HelmList(helmClient))
+		s.AddTool(tools.HelmGetTool(), handlers.HelmGet(helmClient))
+		s.AddTool(tools.HelmHistoryTool(), handlers.HelmHistory(helmClient))
+		s.AddTool(tools.HelmRepoListTool(), handlers.HelmRepoList(helmClient))
 
-	// Register write operations only if not in read-only mode
-	if !readOnly {
-		s.AddTool(tools.HelmInstallTool(), handlers.HelmInstall(helmClient))
-		s.AddTool(tools.HelmUpgradeTool(), handlers.HelmUpgrade(helmClient))
-		s.AddTool(tools.HelmUninstallTool(), handlers.HelmUninstall(helmClient))
-		s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
-		s.AddTool(tools.HelmRepoAddTool(), handlers.HelmRepoAdd(helmClient))
+		// Register write operations only if not in read-only mode
+		if !readOnly {
+			s.AddTool(tools.HelmInstallTool(), handlers.HelmInstall(helmClient))
+			s.AddTool(tools.HelmUpgradeTool(), handlers.HelmUpgrade(helmClient))
+			s.AddTool(tools.HelmUninstallTool(), handlers.HelmUninstall(helmClient))
+			s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
+			s.AddTool(tools.HelmRepoAddTool(), handlers.HelmRepoAdd(helmClient))
+		}
 	}
 
 	// Start server based on mode
