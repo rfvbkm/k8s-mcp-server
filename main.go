@@ -2,7 +2,7 @@
 // Manage Kubernetes Cluster workloads via MCP.
 // It initializes the MCP server, sets up the Kubernetes client,
 // and registers the necessary handlers for various Kubernetes operations.
-// It also starts the server to listen for incoming requests on stdin/stdout.
+// It also starts the server to listen for incoming requests via stdio, SSE, or streamable-http transport.
 // It uses the MCP Go library to create the server and handle requests.
 // The server is capable of handling various Kubernetes operations
 // such as listing resources, getting resource details, and retrieving logs.
@@ -30,7 +30,7 @@ func main() {
 	var port string
 
 	flag.StringVar(&port, "port", getEnvOrDefault("SERVER_PORT", "8080"), "Server port")
-	flag.StringVar(&mode, "mode", getEnvOrDefault("SERVER_MODE", "sse"), "Server mode: 'stdio' or 'sse'")
+	flag.StringVar(&mode, "mode", getEnvOrDefault("SERVER_MODE", "sse"), "Server mode: 'stdio', 'sse', or 'streamable-http'")
 	flag.Parse()
 
 	// Create MCP server
@@ -92,8 +92,16 @@ func main() {
 			return
 		}
 		fmt.Printf("SSE server started on port %s\n", port)
+	case "streamable-http":
+		fmt.Printf("Starting server in streamable-http mode on port %s...\n", port)
+		streamableHTTP := server.NewStreamableHTTPServer(s, server.WithStateLess(true))
+		if err := streamableHTTP.Start(":" + port); err != nil {
+			fmt.Printf("Failed to start streamable-http server: %v\n", err)
+			return
+		}
+		fmt.Printf("Streamable-http server started on port %s (endpoint: http://localhost:%s/mcp)\n", port, port)
 	default:
-		fmt.Printf("Unknown server mode: %s. Use 'stdio' or 'sse'.\n", mode)
+		fmt.Printf("Unknown server mode: %s. Use 'stdio', 'sse', or 'streamable-http'.\n", mode)
 		return
 	}
 }
