@@ -227,8 +227,9 @@ Once the server is running in SSE or streamable-http mode, you can make JSON-RPC
 curl -X POST -H "Content-Type: application/json" -d '{
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getAPIResources",
+  "method": "tools/call",
   "params": {
+    "name": "getAPIResources",
     "arguments": {
       "includeNamespaceScoped": true,
       "includeClusterScoped": true
@@ -257,8 +258,9 @@ Retrieves all available API resources in the Kubernetes cluster.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getAPIResources",
+  "method": "tools/call",
   "params": {
+    "name": "getAPIResources",
     "arguments": {
       "includeNamespaceScoped": true,
       "includeClusterScoped": true
@@ -281,8 +283,9 @@ Lists all instances of a specific resource type.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "listResources",
+  "method": "tools/call",
   "params": {
+    "name": "listResources",
     "arguments": {
       "Kind": "Pod",
       "namespace": "default",
@@ -306,8 +309,9 @@ Retrieves detailed information about a specific resource.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getResource",
+  "method": "tools/call",
   "params": {
+    "name": "getResource",
     "arguments": {
       "kind": "Pod",
       "name": "nginx-pod",
@@ -331,8 +335,9 @@ Describes a resource in the Kubernetes cluster, similar to `kubectl describe`.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "describeResource",
+  "method": "tools/call",
   "params": {
+    "name": "describeResource",
     "arguments": {
       "Kind": "Pod",
       "name": "nginx-pod",
@@ -358,8 +363,9 @@ Retrieves the logs of a specific pod.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getPodsLogs",
+  "method": "tools/call",
   "params": {
+    "name": "getPodsLogs",
     "arguments": {
       "Name": "my-app-pod-12345",
       "namespace": "production",
@@ -381,8 +387,9 @@ Retrieves resource usage metrics for a specific node.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getNodeMetrics",
+  "method": "tools/call",
   "params": {
+    "name": "getNodeMetrics",
     "arguments": {
       "Name": "worker-node-1"
     }
@@ -403,8 +410,9 @@ Retrieves CPU and Memory metrics for a specific pod.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getPodMetrics",
+  "method": "tools/call",
   "params": {
+    "name": "getPodMetrics",
     "arguments": {
       "namespace": "default",
       "podName": "my-app-pod-67890"
@@ -427,8 +435,9 @@ Retrieves events for a specific namespace or resource.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getEvents",
+  "method": "tools/call",
   "params": {
+    "name": "getEvents",
     "arguments": {
       "namespace": "default"
     }
@@ -441,8 +450,9 @@ Retrieves events for a specific namespace or resource.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "getEvents",
+  "method": "tools/call",
   "params": {
+    "name": "getEvents",
     "arguments": {
       "namespace": "production",
       "resourceName": "my-app-pod-12345",
@@ -465,8 +475,9 @@ Creates a new resource or updates an existing one from a YAML or JSON manifest.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "createOrUpdateResource",
+  "method": "tools/call",
   "params": {
+    "name": "createOrUpdateResource",
     "arguments": {
       "namespace": "default",
       "manifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
@@ -493,8 +504,9 @@ Install a Helm chart to the Kubernetes cluster.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "helmInstall",
+  "method": "tools/call",
   "params": {
+    "name": "helmInstall",
     "arguments": {
       "releaseName": "my-nginx",
       "chartName": "bitnami/nginx",
