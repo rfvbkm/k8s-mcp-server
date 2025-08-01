@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -219,6 +221,78 @@ func (c *Client) CreateOrUpdateResource(ctx context.Context, namespace, manifest
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create or patch resource: %w", err)
+	}
+
+	return result.UnstructuredContent(), nil
+}
+
+// CreateOrUpdateResourceYAML creates a new resource or updates an existing one from a YAML manifest.
+// This function is specifically designed for YAML input and provides optimized YAML parsing.
+// It converts the YAML manifest to JSON internally and then uses the dynamic client
+// to first attempt an update, and if that fails (e.g., resource not found), it attempts to create the resource.
+// Requires the resource manifest to include a name.
+// Returns the unstructured content of the created/updated resource, or an error.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - namespace: Target namespace for the resource (overrides manifest namespace if provided)
+//   - yamlManifest: YAML manifest string of the Kubernetes resource
+//   - kind: Resource kind (optional, will be inferred from manifest if empty)
+//
+// Example YAML manifest:
+//
+//	apiVersion: v1
+//	kind: Pod
+//	metadata:
+//	  name: my-pod
+//	  namespace: default
+//	spec:
+//	  containers:
+//	  - name: nginx
+//	    image: nginx:latest
+func (c *Client) CreateOrUpdateResourceYAML(ctx context.Context, namespace, yamlManifest, kind string) (map[string]interface{}, error) {
+	// Convert YAML to JSON
+	jsonData, err := yaml.YAMLToJSON([]byte(yamlManifest))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse YAML manifest: %w", err)
+	}
+
+	// Parse the converted JSON into unstructured object
+	obj := &unstructured.Unstructured{}
+	if err := json.Unmarshal(jsonData, &obj.Object); err != nil {
+		return nil, fmt.Errorf("failed to parse converted JSON from YAML manifest: %w", err)
+	}
+
+	// Determine the resource GVR
+	gvr, err := c.getCachedGVR(kind)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set namespace if provided (overrides manifest namespace)
+	if namespace != "" {
+		obj.SetNamespace(namespace)
+	}
+
+	if obj.GetName() == "" {
+		return nil, fmt.Errorf("resource name is required in YAML manifest")
+	}
+
+	resource := c.dynamicClient.Resource(*gvr).Namespace(obj.GetNamespace())
+
+	// Try to patch; if not found, create
+	result, err := resource.Patch(
+		ctx,
+		obj.GetName(),
+		types.MergePatchType,
+		jsonData,
+		metav1.PatchOptions{},
+	)
+	if errors.IsNotFound(err) {
+		result, err = resource.Create(ctx, obj, metav1.CreateOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create or patch resource from YAML manifest: %w", err)
 	}
 
 	return result.UnstructuredContent(), nil

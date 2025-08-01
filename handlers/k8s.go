@@ -335,3 +335,36 @@ func CreateOrUpdateResource(client *k8s.Client) func(ctx context.Context, reques
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
+
+// CreateOrUpdateResourceYAML returns a handler function for the createOrUpdateResourceYAML tool.
+// It creates or updates a resource in the Kubernetes cluster based on the provided
+// namespace and YAML manifest. This function is specifically optimized for YAML input.
+// The result is serialized to JSON and returned.
+func CreateOrUpdateResourceYAML(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
+		}
+
+		yamlManifest, err := getRequiredStringArg(args, "yamlManifest")
+		if err != nil {
+			return nil, err
+		}
+
+		namespace := getStringArg(args, "namespace", "")
+		kind := getStringArg(args, "kind", "")
+
+		resource, err := client.CreateOrUpdateResourceYAML(ctx, namespace, yamlManifest, kind)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create or update resource from YAML: %w", err)
+		}
+
+		jsonResponse, err := json.Marshal(resource)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize response: %w", err)
+		}
+
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}
