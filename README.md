@@ -501,10 +501,10 @@ Retrieves events for a specific namespace or resource.
 
 #### 9. `createOrUpdateResource`
 
-Creates a new resource or updates an existing one from a YAML or JSON manifest.
+Creates a new resource or updates an existing one from a JSON manifest.
 
 **Parameters:**
-- `manifest` (string, required): The YAML or JSON manifest of the resource.
+- `manifest` (string, required): The JSON manifest of the resource.
 - `namespace` (string, optional): The namespace in which to create/update the resource. If the manifest contains a namespace, this parameter can be used to override it. If not provided and the manifest doesn't specify one, "default" might be assumed or it might be an error depending on the resource type.
 
 **Example:**
@@ -524,12 +524,12 @@ Creates a new resource or updates an existing one from a YAML or JSON manifest.
 }
 
 ```
-#### `createOrUpdateResourceYAML`
+#### 10. `createOrUpdateResourceYAML`
 
 Creates a new resource or updates an existing one from a YAML manifest. This tool is specifically optimized for YAML input and provides better error handling for YAML parsing issues.
 
 **Parameters:**
-- `yamlManifest` (string, required): The YAML manifest of the resource.
+- `manifest` (string, required): The YAML manifest of the resource.
 - `namespace` (string, optional): The namespace in which to create/update the resource. If the manifest contains a namespace, this parameter can be used to override it. If not provided and the manifest doesn't specify one, "default" might be assumed or it might be an error depending on the resource type.
 - `kind` (string, optional): The kind of the resource. If not provided, the kind will be inferred from the YAML manifest.
 
@@ -543,7 +543,7 @@ Creates a new resource or updates an existing one from a YAML manifest. This too
     "name": "createOrUpdateResourceYAML",
     "arguments": {
       "namespace": "default",
-      "yamlManifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
+      "manifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
     }
   }
 }
@@ -552,7 +552,7 @@ Creates a new resource or updates an existing one from a YAML manifest. This too
 
 ### Helm Operations
 
-#### 10. `helmInstall`
+#### 11. `helmInstall`
 
 Install a Helm chart to the Kubernetes cluster.
 
@@ -587,27 +587,27 @@ Install a Helm chart to the Kubernetes cluster.
 }
 ```
 
-#### 11. `helmUpgrade`
+#### 12. `helmUpgrade`
 
 Upgrade an existing Helm release.
 
-#### 12. `helmUninstall`
+#### 13. `helmUninstall`
 
 Uninstall a Helm release from the Kubernetes cluster.
 
-#### 13. `helmList`
+#### 14. `helmList`
 
 List all Helm releases in the cluster or a specific namespace.
 
-#### 14. `helmGet`
+#### 15. `helmGet`
 
 Get details of a specific Helm release.
 
-#### 15. `helmHistory`
+#### 16. `helmHistory`
 
 Get the history of a Helm release.
 
-#### 16. `helmRollback`
+#### 17. `helmRollback`
 
 Rollback a Helm release to a previous revision.
 
