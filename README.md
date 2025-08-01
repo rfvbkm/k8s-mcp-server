@@ -514,13 +514,15 @@ Creates a new resource or updates an existing one from a YAML or JSON manifest.
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "createOrUpdateResource",
+    "name": "createResource",
     "arguments": {
+      "kind": "Deployment",
       "namespace": "default",
-      "manifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
+      "manifest": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx-deployment\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"nginx\"}},\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginx:latest\"}]}}}}"
     }
   }
 }
+
 ```
 #### `createOrUpdateResourceYAML`
 

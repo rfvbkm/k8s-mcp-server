@@ -196,10 +196,34 @@ func (c *Client) CreateOrUpdateResource(ctx context.Context, namespace, manifest
 		return nil, err
 	}
 
-	// Set namespace if provided
-	if namespace != "" {
-		obj.SetNamespace(namespace)
+	// Check if ns exists
+	_, err = c.clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	if err == nil {
+		fmt.Printf("Namespace %s exists\n", namespace)
 	}
+	if errors.IsNotFound(err) {
+		fmt.Printf("Namespace %s does not exist, creating one\n", namespace)
+		_, err = c.clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"kubernetes.io/metadata.name": namespace,
+				},
+				Name: namespace,
+			},
+			Spec: corev1.NamespaceSpec{
+				Finalizers: []corev1.FinalizerName{corev1.FinalizerKubernetes},
+			},
+			Status: corev1.NamespaceStatus{
+				Phase:      corev1.NamespaceActive,
+				Conditions: nil,
+			},
+		}, metav1.CreateOptions{})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve namespace resource: %w", err)
+	}
+
+	obj.SetNamespace(namespace)
 
 	if obj.GetName() == "" {
 		return nil, fmt.Errorf("resource name is required")
