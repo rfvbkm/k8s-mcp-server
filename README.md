@@ -517,7 +517,7 @@ Creates a new resource or updates an existing one from a YAML or JSON manifest.
     "name": "createResource",
     "arguments": {
       "kind": "Deployment",
-      "namespace": "Default",
+      "namespace": "default",
       "manifest": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx-deployment\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"nginx\"}},\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginx:latest\"}]}}}}"
     }
   }
