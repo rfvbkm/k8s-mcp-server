@@ -551,33 +551,8 @@ Creates a new resource or updates an existing one from a YAML manifest. This too
 
 ```
 
-#### 11. `createResourceYAML`
 
-Creates a new resource or updates an existing one from a YAML manifest. This tool is specifically optimized for YAML input and provides better error handling for YAML parsing issues.
-
-**Parameters:**
-- `yamlManifest` (string, required): The YAML manifest of the resource to create or update. Must be valid Kubernetes YAML format.
-- `namespace` (string, optional): The namespace of the resource (overrides namespace in YAML manifest if provided).
-- `kind` (string, optional): The type of resource to create (optional, will be inferred from YAML manifest if not provided).
-
-**Example:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "createResourceYAML",
-    "arguments": {
-      "namespace": "default",
-      "yamlManifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
-    }
-  }
-}
-
-```
-
-#### 12. `deleteResource`
+#### 11. `deleteResource`
 
 Deletes a specific resource from the Kubernetes cluster.
 
@@ -606,7 +581,7 @@ Deletes a specific resource from the Kubernetes cluster.
 
 ### Helm Operations
 
-#### 11. `helmInstall`
+#### 12. `helmInstall`
 
 Install a Helm chart to the Kubernetes cluster.
 
@@ -641,13 +616,10 @@ Install a Helm chart to the Kubernetes cluster.
 }
 ```
 
-#### 12. `helmUpgrade`
+#### 13. `helmUpgrade`
 
 Upgrade an existing Helm release.
 
-#### 13. `helmUninstall`
-
-Uninstall a Helm release from the Kubernetes cluster.
 
 #### 14. `helmList`
 
@@ -664,6 +636,10 @@ Get the history of a Helm release.
 #### 17. `helmRollback`
 
 Rollback a Helm release to a previous revision.
+
+#### 18. `helmUninstall`
+
+Uninstall a Helm release from the Kubernetes cluster.
 
 ### Adding New Tools
 
