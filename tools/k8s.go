@@ -113,8 +113,8 @@ func GetEventsTool() mcp.Tool {
 	)
 }
 
-// create or update resource of any type or kind
-func CreateOrUpdateResourceTool() mcp.Tool {
+// CreateOrUpdateResourceJSONTool creates a tool definition for creating/updating resources from JSON manifests
+func CreateOrUpdateResourceJSONTool() mcp.Tool {
 	return mcp.NewTool(
 		"createResource",
 		mcp.WithDescription("Create a resource in the Kubernetes cluster"),

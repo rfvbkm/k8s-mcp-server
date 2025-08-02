@@ -182,7 +182,7 @@ func (c *Client) ListResources(ctx context.Context, kind, namespace, labelSelect
 // (e.g., resource not found), it attempts to create the resource.
 // Requires the resource manifest to include a name.
 // Returns the unstructured content of the created/updated resource, or an error.
-func (c *Client) CreateOrUpdateResource(ctx context.Context, namespace, manifestJSON, kind string) (map[string]interface{}, error) {
+func (c *Client) CreateOrUpdateResourceJSON(ctx context.Context, namespace, manifestJSON, kind string) (map[string]interface{}, error) {
 	// Decode JSON into unstructured object directly (no YAML conversion)
 
 	obj := &unstructured.Unstructured{}

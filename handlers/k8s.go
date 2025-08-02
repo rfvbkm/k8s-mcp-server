@@ -307,7 +307,7 @@ func GetEvents(client *k8s.Client) func(ctx context.Context, request mcp.CallToo
 // CreateOrUpdateResource returns a handler function for the createOrUpdateResource tool.
 // It creates or updates a resource in the Kubernetes cluster based on the provided
 // namespace and manifest. The result is serialized to JSON and returned.
-func CreateOrUpdateResource(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func CreateOrUpdateResourceJSON(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args, ok := request.Params.Arguments.(map[string]interface{})
 		if !ok {
@@ -322,7 +322,7 @@ func CreateOrUpdateResource(client *k8s.Client) func(ctx context.Context, reques
 		namespace := getStringArg(args, "namespace", "")
 		kind := getStringArg(args, "kind", "")
 
-		resource, err := client.CreateOrUpdateResource(ctx, namespace, manifest, kind)
+		resource, err := client.CreateOrUpdateResourceJSON(ctx, namespace, manifest, kind)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create or update resource: %w", err)
 		}

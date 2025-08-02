@@ -92,7 +92,7 @@ func main() {
 
 		// Register write operations only if not in read-only mode
 		if !readOnly {
-			s.AddTool(tools.CreateOrUpdateResourceTool(), handlers.CreateOrUpdateResource(client))
+			s.AddTool(tools.CreateOrUpdateResourceJSONTool(), handlers.CreateOrUpdateResourceJSON(client))
 			s.AddTool(tools.CreateOrUpdateResourceYAMLTool(), handlers.CreateOrUpdateResourceYAML(client))
 		}
 	}
