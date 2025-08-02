@@ -134,3 +134,14 @@ func CreateOrUpdateResourceYAMLTool() mcp.Tool {
 		mcp.WithString("yamlManifest", mcp.Required(), mcp.Description("The YAML manifest of the resource to create or update. Must be valid Kubernetes YAML format.")),
 	)
 }
+
+// DeleteResourceTool creates a tool definition for deleting resources
+func DeleteResourceTool() mcp.Tool {
+	return mcp.NewTool(
+		"deleteResource",
+		mcp.WithDescription("Delete a resource in the Kubernetes cluster"),
+		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to delete")),
+		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource to delete")),
+		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
+	)
+}

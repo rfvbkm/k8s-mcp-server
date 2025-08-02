@@ -368,3 +368,34 @@ func CreateOrUpdateResourceYAML(client *k8s.Client) func(ctx context.Context, re
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
+
+// DeleteResource returns a handler function for the deleteResource tool.
+// It deletes a resource in the Kubernetes cluster based on the provided
+// namespace and kind. The result is serialized to JSON and returned.
+func DeleteResource(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
+		}
+
+		kind, err := getRequiredStringArg(args, "kind")
+		if err != nil {
+			return nil, err
+		}
+
+		name, err := getRequiredStringArg(args, "name")
+		if err != nil {
+			return nil, err
+		}
+
+		namespace := getStringArg(args, "namespace", "")
+
+		err = client.DeleteResource(ctx, kind, name, namespace)
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete resource: %w", err)
+		}
+
+		return mcp.NewToolResultText("Resource deleted successfully"), nil
+	}
+}

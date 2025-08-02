@@ -13,9 +13,10 @@ A Kubernetes Model Context Protocol (MCP) server that provides tools for interac
 - **Pod Metrics**: Get CPU and Memory metrics for specific pods.
 - **Event Listing**: List events within a namespace or for a specific resource.
 - **Resource Creation/Updating**: Create new Kubernetes resources or update existing ones from a YAML or JSON manifest.
+- **Resource Deletion**: It deletes a resource in the Kubernetes cluster based on the provided namespace and kind.
 - **Standardized Interface**: Uses the MCP protocol for consistent tool interaction.
 - **Flexible Configuration**: Supports different Kubernetes contexts and resource scopes.
-- **Multiple Modes**: Run in `stdio` mode for CLI tools, `sse` mode, or `streamable-http` mode for web applications.
+- **Multiple Modes**: Run in `stdio` mode for CLI tools, `sse` mode, or `streamable-http` mode for web applications, and `--readonly` for no change in the cluster.
 - **Security**: Runs as non-root user in Docker containers for enhanced security.
 
 ## Prerequisites
@@ -544,6 +545,59 @@ Creates a new resource or updates an existing one from a YAML manifest. This too
     "arguments": {
       "namespace": "default",
       "manifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
+    }
+  }
+}
+
+```
+
+#### 11. `createResourceYAML`
+
+Creates a new resource or updates an existing one from a YAML manifest. This tool is specifically optimized for YAML input and provides better error handling for YAML parsing issues.
+
+**Parameters:**
+- `yamlManifest` (string, required): The YAML manifest of the resource to create or update. Must be valid Kubernetes YAML format.
+- `namespace` (string, optional): The namespace of the resource (overrides namespace in YAML manifest if provided).
+- `kind` (string, optional): The type of resource to create (optional, will be inferred from YAML manifest if not provided).
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "createResourceYAML",
+    "arguments": {
+      "namespace": "default",
+      "yamlManifest": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: my-new-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:latest"
+    }
+  }
+}
+
+```
+
+#### 12. `deleteResource`
+
+Deletes a specific resource from the Kubernetes cluster.
+
+**Parameters:**
+- `kind` (string, required): The type of resource to delete.
+- `name` (string, required): The name of the resource to delete.
+- `namespace` (string, optional): The namespace of the resource (required for namespaced resources).
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "deleteResource",
+    "arguments": {
+      "kind": "Pod",
+      "name": "my-pod",
+      "namespace": "default"
     }
   }
 }
