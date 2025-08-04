@@ -125,16 +125,34 @@ func (c *Client) UpgradeChart(ctx context.Context, namespace, releaseName, chart
 		return nil, fmt.Errorf("failed to initialize action config: %w", err)
 	}
 
+	// Create and assign registry client
+	regClient, err := registry.NewClient(
+		registry.ClientOptDebug(true),
+		registry.ClientOptEnableCache(false),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize registry client: %w", err)
+	}
+	fmt.Println("Registry client created successfully:", regClient)
+
 	client := action.NewUpgrade(actionConfig)
 	client.Namespace = namespace
 
-	// Load the chart
-	chart, err := loader.Load(chartName)
+	if values == nil {
+		values = make(map[string]interface{})
+	}
+
+	// Locate the chart (for both OCI and regular charts)
+	chartPath, err := client.LocateChart(chartName, c.settings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to locate chart: %w", err)
+	}
+
+	chart, err := loader.Load(chartPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load chart: %w", err)
 	}
 
-	// Upgrade the chart
 	release, err := client.Run(releaseName, chart, values)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upgrade chart: %w", err)
