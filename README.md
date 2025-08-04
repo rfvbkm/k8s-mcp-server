@@ -620,6 +620,36 @@ Install a Helm chart to the Kubernetes cluster.
 
 Upgrade an existing Helm release.
 
+**Parameters:**
+- `releaseName` (string, required): Name of the Helm release
+- `chartName` (string, required): Name or path of the Helm chart
+- `namespace` (string, required): Kubernetes namespace for the release (defaults to "default")
+- `repoURL` (string, required): Helm repository URL
+- `values` (object, required): Values to override in the chart
+  **Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "helmUpgrade",
+    "arguments": {
+      "releaseName": "my-nginx",
+      "chartName": "nginx",
+      "namespace": "web",
+      "repoURL": "https://charts.bitnami.com/bitnami",
+      "values": {
+        "replicaCount": 2,
+        "service": {
+          "type": "NodePort"
+        }
+      }
+    }
+  }
+}
+
+```
 
 #### 14. `helmList`
 
