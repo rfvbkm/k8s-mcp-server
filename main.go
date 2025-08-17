@@ -112,6 +112,7 @@ func main() {
 			s.AddTool(tools.HelmUninstallTool(), handlers.HelmUninstall(helmClient))
 			s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
 			s.AddTool(tools.HelmRepoAddTool(), handlers.HelmRepoAdd(helmClient))
+			s.AddTool(tools.GetIngressesTool(), handlers.GetIngresses(client))
 		}
 	}
 

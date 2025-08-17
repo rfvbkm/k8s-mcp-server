@@ -400,3 +400,30 @@ func DeleteResource(client *k8s.Client) func(ctx context.Context, request mcp.Ca
 		return mcp.NewToolResultText("Resource deleted successfully"), nil
 	}
 }
+
+// getIngresses returns a handler function for the getIngresses tool.
+// It retrieves ingress resources from the Kubernetes cluster based on the provided
+// Host and Path. The result is serialized to JSON and returned.
+func GetIngresses(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
+		}
+
+		host := getStringArg(args, "host", "")
+		path := getStringArg(args, "path", "")
+
+		ingresses, err := client.GetIngresses(ctx, host, path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get ingress resources: %w", err)
+		}
+
+		jsonResponse, err := json.Marshal(ingresses)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize response: %w", err)
+		}
+
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}

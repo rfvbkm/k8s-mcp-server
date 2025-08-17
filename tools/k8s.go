@@ -146,3 +146,14 @@ func DeleteResourceTool() mcp.Tool {
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
 	)
 }
+
+// GetIngressesTool creates a tool for getting ingresses.
+// It defines the tool's name, description, and parameters for the host and path.
+func GetIngressesTool() mcp.Tool {
+	return mcp.NewTool(
+		"getIngresses",
+		mcp.WithDescription("Get ingresses in the Kubernetes cluster"),
+		mcp.WithString("host", mcp.Required(), mcp.Description("The host to get ingresses from")),
+		mcp.WithString("path", mcp.Description("The path to get ingresses from")),
+	)
+}

@@ -569,3 +569,25 @@ func (c *Client) GetEvents(ctx context.Context, namespace string) ([]map[string]
 	}
 	return events, nil
 }
+
+// GetIngresses retrieves ingresses for a specific host and path.
+// It uses the extensions/v1beta1 clientset to fetch ingresses.
+// Returns a slice of maps, each representing an ingress, or an error.
+func (c *Client) GetIngresses(ctx context.Context, host, path string) ([]map[string]interface{}, error) {
+	ingresses, err := c.clientset.ExtensionsV1beta1().Ingresses("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve ingresses: %w", err)
+	}
+
+	var ingressList []map[string]interface{}
+	for _, ingress := range ingresses.Items {
+		ingressList = append(ingressList, map[string]interface{}{
+			"name":      ingress.Name,
+			"namespace": ingress.Namespace,
+			"host":      ingress.Spec.Rules,
+			"paths":     ingress.Spec.Rules,
+		})
+	}
+
+	return ingressList, nil
+}
