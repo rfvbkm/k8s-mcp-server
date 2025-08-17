@@ -413,8 +413,9 @@ func GetIngresses(client *k8s.Client) func(ctx context.Context, request mcp.Call
 
 		host := getStringArg(args, "host", "")
 		path := getStringArg(args, "path", "")
+		namespace := getStringArg(args, "namespace", "")
 
-		ingresses, err := client.GetIngresses(ctx, host, path)
+		ingresses, err := client.GetIngresses(ctx, host, path, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get ingress resources: %w", err)
 		}
