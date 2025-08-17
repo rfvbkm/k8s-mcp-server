@@ -84,9 +84,10 @@ func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 
 		namespace := getStringArg(args, "namespace", "")
 		labelSelector := getStringArg(args, "labelSelector", "")
+		fieldSelector := getStringArg(args, "fieldSelector", "")
 
 		// Fetch resources
-		resources, err := client.ListResources(ctx, kind, namespace, labelSelector, "")
+		resources, err := client.ListResources(ctx, kind, namespace, labelSelector, fieldSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list resources for kind '%s': %w", kind, err)
 		}

@@ -37,6 +37,7 @@ func ListResourcesTool() mcp.Tool {
 		mcp.WithString("Kind", mcp.Required(), mcp.Description("The type of resource to list")),
 		mcp.WithString("namespace", mcp.Description("The namespace to list resources in")),
 		mcp.WithString("labelSelector", mcp.Description("A label selector to filter resources")),
+		mcp.WithString("fieldSelector", mcp.Description("A field selector to filter resources")),
 	)
 }
 
