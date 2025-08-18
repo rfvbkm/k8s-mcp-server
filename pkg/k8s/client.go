@@ -574,7 +574,7 @@ func (c *Client) GetEvents(ctx context.Context, namespace string) ([]map[string]
 // It uses the extensions/v1beta1 clientset to fetch ingresses.
 // Returns a slice of maps, each representing an ingress, or an error.
 func (c *Client) GetIngresses(ctx context.Context, host, path, namespace string) ([]map[string]interface{}, error) {
-	ingresses, err := c.clientset.ExtensionsV1beta1().Ingresses("").List(ctx, metav1.ListOptions{})
+	ingresses, err := c.clientset.ExtensionsV1beta1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve ingresses: %w", err)
 	}
