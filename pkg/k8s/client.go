@@ -571,21 +571,39 @@ func (c *Client) GetEvents(ctx context.Context, namespace string) ([]map[string]
 }
 
 // GetIngresses retrieves ingresses for a specific host and path.
-// It uses the extensions/v1beta1 clientset to fetch ingresses.
+// It uses the networking.k8s.io/v1 clientset to fetch ingresses.
 // Returns a slice of maps, each representing an ingress, or an error.
 func (c *Client) GetIngresses(ctx context.Context, host, path, namespace string) ([]map[string]interface{}, error) {
-	ingresses, err := c.clientset.ExtensionsV1beta1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
+	ingresses, err := c.clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve ingresses: %w", err)
 	}
 
 	var ingressList []map[string]interface{}
 	for _, ingress := range ingresses.Items {
+		// Extract host and path information from rules
+		var hosts []string
+		var paths []string
+
+		for _, rule := range ingress.Spec.Rules {
+			if rule.Host != "" {
+				hosts = append(hosts, rule.Host)
+			}
+			if rule.HTTP != nil {
+				for _, httpPath := range rule.HTTP.Paths {
+					if httpPath.Path != "" {
+						paths = append(paths, httpPath.Path)
+					}
+				}
+			}
+		}
+
 		ingressList = append(ingressList, map[string]interface{}{
 			"name":      ingress.Name,
 			"namespace": ingress.Namespace,
-			"host":      ingress.Spec.Rules,
-			"paths":     ingress.Spec.Rules,
+			"hosts":     hosts,
+			"paths":     paths,
+			"rules":     ingress.Spec.Rules,
 		})
 	}
 
