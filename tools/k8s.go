@@ -154,7 +154,5 @@ func GetIngressesTool() mcp.Tool {
 		"getIngresses",
 		mcp.WithDescription("Get ingresses in the Kubernetes cluster"),
 		mcp.WithString("host", mcp.Required(), mcp.Description("The host to get ingresses from")),
-		mcp.WithString("namespace", mcp.Required(), mcp.Description("The namespace to get ingresses from")),
-		mcp.WithString("path", mcp.Description("The path to get ingresses from")),
 	)
 }

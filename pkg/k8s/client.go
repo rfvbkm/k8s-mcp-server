@@ -570,11 +570,11 @@ func (c *Client) GetEvents(ctx context.Context, namespace string) ([]map[string]
 	return events, nil
 }
 
-// GetIngresses retrieves ingresses for a specific host and path.
+// GetIngresses retrieves ingresses and returns specific fields: name, namespace, hosts, paths, and backend services.
 // It uses the networking.k8s.io/v1 clientset to fetch ingresses.
-// Returns a slice of maps, each representing an ingress, or an error.
-func (c *Client) GetIngresses(ctx context.Context, host, path, namespace string) ([]map[string]interface{}, error) {
-	ingresses, err := c.clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
+// Returns a slice of maps, each representing an ingress with the requested fields, or an error.
+func (c *Client) GetIngresses(ctx context.Context, host string) ([]map[string]interface{}, error) {
+	ingresses, err := c.clientset.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve ingresses: %w", err)
 	}
@@ -584,26 +584,36 @@ func (c *Client) GetIngresses(ctx context.Context, host, path, namespace string)
 		// Extract host and path information from rules
 		var hosts []string
 		var paths []string
+		var backendServices []string
 
 		for _, rule := range ingress.Spec.Rules {
+			// If host filter is specified, only process matching hosts
+			if host != "" && rule.Host != host {
+				continue
+			}
+
 			if rule.Host != "" {
 				hosts = append(hosts, rule.Host)
 			}
+
 			if rule.HTTP != nil {
-				for _, httpPath := range rule.HTTP.Paths {
-					if httpPath.Path != "" {
-						paths = append(paths, httpPath.Path)
+				for _, path := range rule.HTTP.Paths {
+					paths = append(paths, path.Path)
+
+					// Extract backend service information
+					if path.Backend.Service != nil {
+						backendServices = append(backendServices, path.Backend.Service.Name)
 					}
 				}
 			}
 		}
 
 		ingressList = append(ingressList, map[string]interface{}{
-			"name":      ingress.Name,
-			"namespace": ingress.Namespace,
-			"hosts":     hosts,
-			"paths":     paths,
-			"rules":     ingress.Spec.Rules,
+			"name":            ingress.Name,
+			"namespace":       ingress.Namespace,
+			"hosts":           hosts,
+			"paths":           paths,
+			"backendServices": backendServices,
 		})
 	}
 
