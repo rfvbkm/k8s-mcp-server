@@ -581,40 +581,44 @@ func (c *Client) GetIngresses(ctx context.Context, host string) ([]map[string]in
 
 	var ingressList []map[string]interface{}
 	for _, ingress := range ingresses.Items {
-		// Extract host and path information from rules
-		var hosts []string
-		var paths []string
-		var backendServices []string
+		// Check if this ingress has any rules matching the given host
+		hasMatchingHost := false
+		var matchingPaths []string
+		var matchingBackendServices []string
 
 		for _, rule := range ingress.Spec.Rules {
-			// If host filter is specified, only process matching hosts
+			// If host filter is specified, only process rules matching the host
 			if host != "" && rule.Host != host {
 				continue
 			}
 
-			if rule.Host != "" {
-				hosts = append(hosts, rule.Host)
-			}
+			// If we reach here, either no host filter or host matches
+			if host == "" || rule.Host == host {
+				hasMatchingHost = true
 
-			if rule.HTTP != nil {
-				for _, path := range rule.HTTP.Paths {
-					paths = append(paths, path.Path)
+				if rule.HTTP != nil {
+					for _, path := range rule.HTTP.Paths {
+						matchingPaths = append(matchingPaths, path.Path)
 
-					// Extract backend service information
-					if path.Backend.Service != nil {
-						backendServices = append(backendServices, path.Backend.Service.Name)
+						// Extract backend service information
+						if path.Backend.Service != nil {
+							matchingBackendServices = append(matchingBackendServices, path.Backend.Service.Name)
+						}
 					}
 				}
 			}
 		}
 
-		ingressList = append(ingressList, map[string]interface{}{
-			"name":            ingress.Name,
-			"namespace":       ingress.Namespace,
-			"hosts":           hosts,
-			"paths":           paths,
-			"backendServices": backendServices,
-		})
+		// Only add this ingress if it has matching rules
+		if hasMatchingHost {
+			ingressList = append(ingressList, map[string]interface{}{
+				"name":            ingress.Name,
+				"namespace":       ingress.Namespace,
+				"hosts":           []string{host}, // Use the requested host
+				"paths":           matchingPaths,
+				"backendServices": matchingBackendServices,
+			})
+		}
 	}
 
 	return ingressList, nil
