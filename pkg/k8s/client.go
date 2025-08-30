@@ -614,7 +614,6 @@ func (c *Client) GetIngresses(ctx context.Context, host string) ([]map[string]in
 			ingressList = append(ingressList, map[string]interface{}{
 				"name":            ingress.Name,
 				"namespace":       ingress.Namespace,
-				"hosts":           []string{host}, // Use the requested host
 				"paths":           matchingPaths,
 				"backendServices": matchingBackendServices,
 			})
