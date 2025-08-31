@@ -171,8 +171,15 @@ func (c *Client) ListResources(ctx context.Context, kind, namespace, labelSelect
 
 	var resources []map[string]interface{}
 	for _, item := range list.Items {
-		resources = append(resources, item.UnstructuredContent())
+		metadata := item.GetLabels()
+		resources = append(resources, map[string]interface{}{
+			"name":      item.GetName(),
+			"kind":      item.GetKind(),
+			"namespace": item.GetNamespace(),
+			"labels":    metadata,
+		})
 	}
+
 	return resources, nil
 }
 
@@ -618,7 +625,7 @@ func (c *Client) GetIngresses(ctx context.Context, host string) ([]map[string]in
 				"backendServices": matchingBackendServices,
 			})
 		}
-	}
+	}	
 
 	return ingressList, nil
 }
