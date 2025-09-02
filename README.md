@@ -523,8 +523,8 @@ Creates a new resource or updates an existing one from a JSON manifest.
     }
   }
 }
-
 ```
+
 #### 10. `createOrUpdateResourceYAML`
 
 Creates a new resource or updates an existing one from a YAML manifest. This tool is specifically optimized for YAML input and provides better error handling for YAML parsing issues.
@@ -548,11 +548,51 @@ Creates a new resource or updates an existing one from a YAML manifest. This too
     }
   }
 }
-
 ```
 
+#### 11. `rolloutRestart`
 
-#### 11. `deleteResource`
+Triggers a rolling restart of a Kubernetes resource that supports spec.template.metadata.annotations. This includes Deployment, DaemonSet, StatefulSet, Job, and similar resources.
+
+**Parameters:**
+- `kind` (string, required): The kind of resource (e.g., "Deployment", "StatefulSet").
+- `name`: (string, required): The name of the resource to restart.
+- `namespace` (string, required for namespaced resources): The namespace of the resource.
+
+**Example (StatefulSet):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "rolloutRestart",
+    "arguments": {
+      "kind": "StatefulSet",
+      "name": "redis-cluster-01",
+      "namespace": "default"
+    }
+  }
+}
+```
+**Example (Deployment):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "rolloutRestart",
+    "arguments": {
+      "kind": "Deployment",
+      "name": "my-app-deployment",
+      "namespace": "default"
+    }
+  }
+}
+```
+
+#### 12. `deleteResource`
 
 Deletes a specific resource from the Kubernetes cluster.
 
@@ -576,12 +616,34 @@ Deletes a specific resource from the Kubernetes cluster.
     }
   }
 }
+```
 
+#### 13. `getIngresses`
+
+Retrieves ingress resources from the Kubernetes cluster.
+You can filter ingresses by host. If no host is provided, all ingresses are returned.
+
+**Parameters:**
+- `host` (string, optional): The host to filter ingresses by. If omitted, all ingresses are included.
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "getIngresses",
+    "arguments": {
+      "host": "example.com"
+    }
+  }
+}
 ```
 
 ### Helm Operations
 
-#### 12. `helmInstall`
+#### 14. `helmInstall`
 
 Install a Helm chart to the Kubernetes cluster.
 
@@ -616,7 +678,7 @@ Install a Helm chart to the Kubernetes cluster.
 }
 ```
 
-#### 13. `helmUpgrade`
+#### 15. `helmUpgrade`
 
 Upgrade an existing Helm release.
 
@@ -648,26 +710,25 @@ Upgrade an existing Helm release.
     }
   }
 }
-
 ```
 
-#### 14. `helmList`
+#### 16. `helmList`
 
 List all Helm releases in the cluster or a specific namespace.
 
-#### 15. `helmGet`
+#### 17. `helmGet`
 
 Get details of a specific Helm release.
 
-#### 16. `helmHistory`
+#### 18. `helmHistory`
 
 Get the history of a Helm release.
 
-#### 17. `helmRollback`
+#### 19. `helmRollback`
 
 Rollback a Helm release to a previous revision.
 
-#### 18. `helmUninstall`
+#### 20. `helmUninstall`
 
 Uninstall a Helm release from the Kubernetes cluster.
 

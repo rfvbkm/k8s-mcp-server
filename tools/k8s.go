@@ -156,3 +156,14 @@ func GetIngressesTool() mcp.Tool {
 		mcp.WithString("host", mcp.Required(), mcp.Description("The host to get ingresses from")),
 	)
 }
+
+// RolloutRestartTool creates a tool for restarting workloads with pod templates.
+func RolloutRestartTool() mcp.Tool {
+	return mcp.NewTool(
+		"rolloutRestart",
+		mcp.WithDescription("Perform a rollout restart on a Deployment, DaemonSet, StatefulSet, ReplicaSet, or any resource with spec.template."),
+		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to restart (e.g., Deployment, DaemonSet)")),
+		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource")),
+		mcp.WithString("namespace", mcp.Required(), mcp.Description("The namespace of the resource")),
+	)
+}

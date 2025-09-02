@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -625,7 +626,37 @@ func (c *Client) GetIngresses(ctx context.Context, host string) ([]map[string]in
 				"backendServices": matchingBackendServices,
 			})
 		}
-	}	
+	}
 
 	return ingressList, nil
+}
+
+// RolloutRestart restarts any Kubernetes workload with a pod template (Deployment, DaemonSet, StatefulSet, etc.).
+// It patches the spec.template.metadata.annotations with the current timestamp.
+// Returns the patched resource content or an error if the resource doesn't support rollout restart.
+func (c *Client) RolloutRestart(ctx context.Context, kind, name, namespace string) (map[string]interface{}, error) {
+	gvr, err := c.getCachedGVR(kind)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GVR for kind %s: %w", kind, err)
+	}
+
+	resource := c.dynamicClient.Resource(*gvr).Namespace(namespace)
+
+	patch := []byte(fmt.Sprintf(
+		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`,
+		time.Now().Format(time.RFC3339),
+	))
+
+	result, err := resource.Patch(ctx, name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to rollout restart %s %s/%s: %w", kind, namespace, name, err)
+	}
+
+	content := result.UnstructuredContent()
+	spec, found, _ := unstructured.NestedMap(content, "spec", "template")
+	if !found || spec == nil {
+		return nil, fmt.Errorf("resource kind %s does not support rollout restart (no spec.template)", kind)
+	}
+
+	return content, nil
 }

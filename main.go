@@ -95,6 +95,7 @@ func main() {
 			s.AddTool(tools.CreateOrUpdateResourceJSONTool(), handlers.CreateOrUpdateResourceJSON(client))
 			s.AddTool(tools.CreateOrUpdateResourceYAMLTool(), handlers.CreateOrUpdateResourceYAML(client))
 			s.AddTool(tools.DeleteResourceTool(), handlers.DeleteResource(client))
+			s.AddTool(tools.RolloutRestartTool(), handlers.RolloutRestart(client))
 		}
 	}
 
