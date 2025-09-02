@@ -426,3 +426,34 @@ func GetIngresses(client *k8s.Client) func(ctx context.Context, request mcp.Call
 		return mcp.NewToolResultText(string(jsonResponse)), nil
 	}
 }
+
+// RolloutRestartHandler returns a handler function for the rolloutRestart tool.
+// It calls the Client.RolloutRestart method and serializes the result to JSON.
+func RolloutRestart(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
+		}
+
+		kind := getStringArg(args, "kind", "")
+		name := getStringArg(args, "name", "")
+		namespace := getStringArg(args, "namespace", "")
+
+		if kind == "" || name == "" || namespace == "" {
+			return nil, fmt.Errorf("kind, name, and namespace are required")
+		}
+
+		result, err := client.RolloutRestart(ctx, kind, name, namespace)
+		if err != nil {
+			return nil, fmt.Errorf("failed to rollout restart resource: %w", err)
+		}
+
+		jsonResponse, err := json.Marshal(result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize response: %w", err)
+		}
+
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}
