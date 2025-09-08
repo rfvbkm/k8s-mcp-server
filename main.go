@@ -89,6 +89,7 @@ func main() {
 		s.AddTool(tools.GetNodeMetricsTools(), handlers.GetNodeMetrics(client))
 		s.AddTool(tools.GetPodMetricsTool(), handlers.GetPodMetrics(client))
 		s.AddTool(tools.GetEventsTool(), handlers.GetEvents(client))
+		s.AddTool(tools.GetIngressesTool(), handlers.GetIngresses(client))
 
 		// Register write operations only if not in read-only mode
 		if !readOnly {
@@ -113,7 +114,6 @@ func main() {
 			s.AddTool(tools.HelmUninstallTool(), handlers.HelmUninstall(helmClient))
 			s.AddTool(tools.HelmRollbackTool(), handlers.HelmRollback(helmClient))
 			s.AddTool(tools.HelmRepoAddTool(), handlers.HelmRepoAdd(helmClient))
-			s.AddTool(tools.GetIngressesTool(), handlers.GetIngresses(client))
 		}
 	}
 
