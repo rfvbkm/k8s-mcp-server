@@ -1,1 +1,4 @@
 .idea/*
+
+# Compiled binary artifact (never commit builds)
+/k8s-mcp-server
