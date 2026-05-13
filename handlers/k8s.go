@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/reza-gholizade/k8s-mcp-server/pkg/k8s"
 
@@ -34,6 +35,59 @@ func getRequiredStringArg(args map[string]interface{}, key string) (string, erro
 	return val, nil
 }
 
+// resolveContextName returns the kubeconfig context to target for the
+// current request. Precedence:
+//  1. `context` argument on the MCP tool call
+//  2. KUBERNETES_CONTEXT environment variable
+//  3. empty string, meaning the kubeconfig's current-context
+func resolveContextName(args map[string]interface{}) string {
+	if name := getStringArg(args, "context", ""); name != "" {
+		return name
+	}
+	return os.Getenv("KUBERNETES_CONTEXT")
+}
+
+// resolveK8sClient picks the kubernetes sub-client for the requested
+// kubeconfig context, falling back to KUBERNETES_CONTEXT and finally
+// to the kubeconfig's current-context.
+func resolveK8sClient(client *k8s.Client, args map[string]interface{}) (*k8s.Client, error) {
+	target, err := client.ForContext(resolveContextName(args))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve kubeconfig context: %w", err)
+	}
+	return target, nil
+}
+
+// ListContexts returns a handler function for the listContexts tool.
+// It enumerates the kubeconfig contexts the server can target and
+// reports which one is the current default.
+func ListContexts(client *k8s.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		names, current, err := client.ListContexts()
+		if err != nil {
+			return nil, fmt.Errorf("failed to list contexts: %w", err)
+		}
+
+		response := map[string]interface{}{
+			"contexts":       names,
+			"currentContext": current,
+		}
+		if src := client.Source(); src != nil {
+			response["authMode"] = src.Mode()
+			response["supportsContexts"] = src.SupportsContexts()
+			if path := src.KubeconfigPath(); path != "" {
+				response["kubeconfigPath"] = path
+			}
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize response: %w", err)
+		}
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	}
+}
+
 // GetAPIResources returns a handler function for the getAPIResources tool.
 // It retrieves API resources from the Kubernetes cluster based on the provided
 // context and parameters (includeNamespaceScoped, includeClusterScoped).
@@ -49,8 +103,13 @@ func GetAPIResources(client *k8s.Client) func(ctx context.Context, request mcp.C
 		includeNamespaceScoped := getBoolArg(args, "includeNamespaceScoped", true)
 		includeClusterScoped := getBoolArg(args, "includeClusterScoped", true)
 
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
 		// Fetch API resources
-		resources, err := client.GetAPIResources(ctx, includeNamespaceScoped, includeClusterScoped)
+		resources, err := target.GetAPIResources(ctx, includeNamespaceScoped, includeClusterScoped)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get API resources: %w", err)
 		}
@@ -86,8 +145,13 @@ func ListResources(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 		labelSelector := getStringArg(args, "labelSelector", "")
 		fieldSelector := getStringArg(args, "fieldSelector", "")
 
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
 		// Fetch resources
-		resources, err := client.ListResources(ctx, kind, namespace, labelSelector, fieldSelector)
+		resources, err := target.ListResources(ctx, kind, namespace, labelSelector, fieldSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list resources for kind '%s': %w", kind, err)
 		}
@@ -125,7 +189,12 @@ func GetResources(client *k8s.Client) func(ctx context.Context, request mcp.Call
 
 		namespace := getStringArg(args, "namespace", "")
 
-		resource, err := client.GetResource(ctx, kind, name, namespace)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		resource, err := target.GetResource(ctx, kind, name, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get resource '%s' of kind '%s': %w", name, kind, err)
 		}
@@ -163,8 +232,13 @@ func DescribeResources(client *k8s.Client) func(ctx context.Context, request mcp
 
 		namespace := getStringArg(args, "namespace", "")
 
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
 		// Fetch resource description
-		resourceDescription, err := client.DescribeResource(ctx, kind, name, namespace)
+		resourceDescription, err := target.DescribeResource(ctx, kind, name, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to describe resource '%s' of kind '%s': %w", name, kind, err)
 		}
@@ -203,7 +277,12 @@ func GetPodsLogs(client *k8s.Client) func(ctx context.Context, request mcp.CallT
 
 		containerName := getStringArg(args, "containerName", "")
 
-		logs, err := client.GetPodsLogs(ctx, namespace, containerName, name)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		logs, err := target.GetPodsLogs(ctx, namespace, containerName, name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get logs for pod '%s': %w", name, err)
 		}
@@ -230,7 +309,12 @@ func GetNodeMetrics(client *k8s.Client) func(ctx context.Context, request mcp.Ca
 			return nil, err
 		}
 
-		resourceUsage, err := client.GetNodeMetrics(ctx, name)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		resourceUsage, err := target.GetNodeMetrics(ctx, name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get metrics for node '%s': %w", name, err)
 		}
@@ -265,7 +349,12 @@ func GetPodMetrics(client *k8s.Client) func(ctx context.Context, request mcp.Cal
 			return nil, err
 		}
 
-		metrics, err := client.GetPodMetrics(ctx, namespace, podName)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		metrics, err := target.GetPodMetrics(ctx, namespace, podName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get metrics for pod '%s' in namespace '%s': %w", podName, namespace, err)
 		}
@@ -291,7 +380,12 @@ func GetEvents(client *k8s.Client) func(ctx context.Context, request mcp.CallToo
 
 		namespace := getStringArg(args, "namespace", "")
 
-		events, err := client.GetEvents(ctx, namespace)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		events, err := target.GetEvents(ctx, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get events: %w", err)
 		}
@@ -323,7 +417,12 @@ func CreateOrUpdateResourceJSON(client *k8s.Client) func(ctx context.Context, re
 		namespace := getStringArg(args, "namespace", "")
 		kind := getStringArg(args, "kind", "")
 
-		resource, err := client.CreateOrUpdateResourceJSON(ctx, namespace, manifest, kind)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		resource, err := target.CreateOrUpdateResourceJSON(ctx, namespace, manifest, kind)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create or update resource: %w", err)
 		}
@@ -348,15 +447,24 @@ func CreateOrUpdateResourceYAML(client *k8s.Client) func(ctx context.Context, re
 			return nil, fmt.Errorf("invalid arguments type: expected map[string]interface{}")
 		}
 
-		yamlManifest, err := getRequiredStringArg(args, "manifest")
+		yamlManifest, err := getRequiredStringArg(args, "yamlManifest")
 		if err != nil {
-			return nil, err
+			// Backward compatibility: older clients sent `manifest`.
+			yamlManifest, err = getRequiredStringArg(args, "manifest")
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		namespace := getStringArg(args, "namespace", "")
 		kind := getStringArg(args, "kind", "")
 
-		resource, err := client.CreateOrUpdateResourceYAML(ctx, namespace, yamlManifest, kind)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		resource, err := target.CreateOrUpdateResourceYAML(ctx, namespace, yamlManifest, kind)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create or update resource from YAML: %w", err)
 		}
@@ -392,7 +500,12 @@ func DeleteResource(client *k8s.Client) func(ctx context.Context, request mcp.Ca
 
 		namespace := getStringArg(args, "namespace", "")
 
-		err = client.DeleteResource(ctx, kind, name, namespace)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		err = target.DeleteResource(ctx, kind, name, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete resource: %w", err)
 		}
@@ -413,7 +526,12 @@ func GetIngresses(client *k8s.Client) func(ctx context.Context, request mcp.Call
 
 		host := getStringArg(args, "host", "")
 
-		ingresses, err := client.GetIngresses(ctx, host)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		ingresses, err := target.GetIngresses(ctx, host)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get ingress resources: %w", err)
 		}
@@ -444,7 +562,12 @@ func RolloutRestart(client *k8s.Client) func(ctx context.Context, request mcp.Ca
 			return nil, fmt.Errorf("kind, name, and namespace are required")
 		}
 
-		result, err := client.RolloutRestart(ctx, kind, name, namespace)
+		target, err := resolveK8sClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := target.RolloutRestart(ctx, kind, name, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to rollout restart resource: %w", err)
 		}

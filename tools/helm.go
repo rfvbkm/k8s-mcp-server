@@ -13,6 +13,7 @@ func HelmInstallTool() mcp.Tool {
 		mcp.WithString("namespace", mcp.Description("Kubernetes namespace for the release")),
 		mcp.WithString("repoURL", mcp.Description("Helm repository URL (optional)")),
 		mcp.WithObject("values", mcp.Description("Values to override in the chart")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Helm Install",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -29,6 +30,7 @@ func HelmUpgradeTool() mcp.Tool {
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
 		mcp.WithObject("values", mcp.Required(), mcp.Description("Values to override in the chart")),
 		mcp.WithObject("repoURL", mcp.Required(), mcp.Description("URL of the Helm repository")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Helm Upgrade",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -42,6 +44,7 @@ func HelmUninstallTool() mcp.Tool {
 		mcp.WithDescription("Uninstall a Helm release from the Kubernetes cluster"),
 		mcp.WithString("releaseName", mcp.Required(), mcp.Description("Name of the Helm release to uninstall")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Helm Uninstall",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -54,6 +57,7 @@ func HelmListTool() mcp.Tool {
 	return mcp.NewTool("helmList",
 		mcp.WithDescription("List all Helm releases in the cluster or a specific namespace"),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace to list releases from (empty for all namespaces)")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Helm List",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -67,6 +71,7 @@ func HelmGetTool() mcp.Tool {
 		mcp.WithDescription("Get details of a specific Helm release"),
 		mcp.WithString("releaseName", mcp.Required(), mcp.Description("Name of the Helm release")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Helm Get",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -80,6 +85,7 @@ func HelmHistoryTool() mcp.Tool {
 		mcp.WithDescription("Get the history of a Helm release"),
 		mcp.WithString("releaseName", mcp.Required(), mcp.Description("Name of the Helm release")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Helm History",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -94,6 +100,7 @@ func HelmRollbackTool() mcp.Tool {
 		mcp.WithString("releaseName", mcp.Required(), mcp.Description("Name of the Helm release to rollback")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("Kubernetes namespace of the release")),
 		mcp.WithNumber("revision", mcp.Required(), mcp.Description("Revision number to rollback to (0 for previous)")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Helm Rollback",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -106,6 +113,7 @@ func HelmRepoAddTool() mcp.Tool {
 		mcp.WithDescription("Add a Helm repository"),
 		mcp.WithString("repoName", mcp.Required(), mcp.Description("Name of the Helm repository")),
 		mcp.WithString("repoURL", mcp.Required(), mcp.Description("URL of the Helm repository")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Helm Repo Add",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -116,6 +124,7 @@ func HelmRepoAddTool() mcp.Tool {
 func HelmRepoListTool() mcp.Tool {
 	return mcp.NewTool("helmRepoList",
 		mcp.WithDescription("List all Helm repositories"),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Helm Repo List",
 			ReadOnlyHint: mcp.ToBoolPtr(true),

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/util/homedir"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
@@ -34,6 +36,12 @@ import (
 // Client encapsulates Kubernetes client functionality including dynamic,
 // discovery, and metrics clients.
 // It also caches API resource information for performance.
+//
+// A Client may be the "root" client (the one returned by NewClient), in
+// which case it owns the kubeconfig ConfigSource and the cache of
+// per-context sub-clients, or a sub-client bound to a specific
+// kubeconfig context (returned by ForContext). Sub-clients share the
+// source pointer with the root.
 type Client struct {
 	clientset        *kubernetes.Clientset
 	dynamicClient    dynamic.Interface
@@ -42,29 +50,113 @@ type Client struct {
 	restConfig       *rest.Config
 	apiResourceCache map[string]*schema.GroupVersionResource
 	cacheLock        sync.RWMutex
+
+	// contextName is the kubeconfig context this client is bound to.
+	// Empty string means kubeconfig's current-context (or N/A for
+	// single-endpoint auth modes such as KUBERNETES_SERVER and
+	// in-cluster service-account auth).
+	contextName string
+
+	// source is the shared kubeconfig source. It is set on the root
+	// client created by NewClient and shared with sub-clients via root.
+	source *ConfigSource
+
+	// root is a back-pointer to the root client (where the sub-client
+	// cache lives). nil on the root client itself.
+	root *Client
+
+	// subClients caches per-context Clients. Only populated on the root.
+	subClients map[string]*Client
+	subLock    sync.RWMutex
 }
 
-// BuildKubernetesConfig builds a Kubernetes REST config using multiple authentication methods.
-// It supports the following methods in order of priority:
-// 1. Kubeconfig content from KUBECONFIG_DATA environment variable
-// 2. API server URL and token from KUBERNETES_SERVER and KUBERNETES_TOKEN environment variables
-// 3. In-cluster authentication (service account token from /var/run/secrets/kubernetes.io/serviceaccount/token)
-// 4. Kubeconfig file path (provided or default ~/.kube/config)
-func BuildKubernetesConfig(kubeconfigPath string) (*rest.Config, error) {
+// ConfigSource holds the parsed kubeconfig and the chosen authentication
+// method, so that per-context REST configs can be produced without
+// repeatedly re-loading kubeconfig data.
+//
+// When the underlying auth method is a single-endpoint mode
+// (KUBERNETES_SERVER/TOKEN or in-cluster service account), kubeConfig
+// is nil and only the empty context name is accepted by RESTConfigFor.
+type ConfigSource struct {
+	kubeConfig     *clientcmdapi.Config
+	kubeconfigPath string
+	fixedConfig    *rest.Config
+	mode           string
+}
+
+// Mode returns a short human-readable description of which
+// authentication method was selected.
+func (s *ConfigSource) Mode() string { return s.mode }
+
+// KubeconfigPath returns the on-disk path that was loaded, when the
+// kubeconfig was sourced from a file. Empty for KUBECONFIG_DATA,
+// KUBERNETES_SERVER and in-cluster modes.
+func (s *ConfigSource) KubeconfigPath() string { return s.kubeconfigPath }
+
+// SupportsContexts reports whether the source has a kubeconfig with
+// selectable contexts.
+func (s *ConfigSource) SupportsContexts() bool { return s.kubeConfig != nil }
+
+// RESTConfigFor builds a *rest.Config for the requested kubeconfig
+// context. An empty contextName means the kubeconfig's current-context
+// (or the single endpoint for non-kubeconfig modes).
+func (s *ConfigSource) RESTConfigFor(contextName string) (*rest.Config, error) {
+	if s.fixedConfig != nil {
+		if contextName != "" {
+			return nil, fmt.Errorf("context selection (%q) is not supported with %s authentication", contextName, s.mode)
+		}
+		return rest.CopyConfig(s.fixedConfig), nil
+	}
+
+	overrides := &clientcmd.ConfigOverrides{}
+	if contextName != "" {
+		if _, ok := s.kubeConfig.Contexts[contextName]; !ok {
+			return nil, fmt.Errorf("context %q not found in kubeconfig", contextName)
+		}
+		overrides.CurrentContext = contextName
+	}
+
+	cc := clientcmd.NewDefaultClientConfig(*s.kubeConfig, overrides)
+	cfg, err := cc.ClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build REST config for context %q: %w", contextName, err)
+	}
+	return cfg, nil
+}
+
+// Contexts returns the sorted list of available kubeconfig contexts and
+// the name of the current-context. For single-endpoint auth modes
+// (KUBERNETES_SERVER/TOKEN, in-cluster) it returns a synthetic single
+// entry named after the authentication mode.
+func (s *ConfigSource) Contexts() ([]string, string, error) {
+	if s.fixedConfig != nil {
+		return []string{s.mode}, s.mode, nil
+	}
+	names := make([]string, 0, len(s.kubeConfig.Contexts))
+	for name := range s.kubeConfig.Contexts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, s.kubeConfig.CurrentContext, nil
+}
+
+// LoadKubeconfigSource resolves a ConfigSource using the same
+// precedence as BuildKubernetesConfig:
+//  1. KUBECONFIG_DATA environment variable (raw kubeconfig contents)
+//  2. KUBERNETES_SERVER + KUBERNETES_TOKEN environment variables
+//  3. In-cluster authentication (service account token)
+//  4. Kubeconfig file path (provided argument, KUBECONFIG env, or ~/.kube/config)
+//
+// Methods 1 and 4 produce a multi-context source; methods 2 and 3
+// produce a single-endpoint source.
+func LoadKubeconfigSource(kubeconfigPath string) (*ConfigSource, error) {
 	// Method 1: Kubeconfig content from environment variable
 	if kubeconfigData := os.Getenv("KUBECONFIG_DATA"); kubeconfigData != "" {
-		// Load kubeconfig from bytes
-		configObj, err := clientcmd.Load([]byte(kubeconfigData))
+		cfg, err := clientcmd.Load([]byte(kubeconfigData))
 		if err != nil {
 			return nil, fmt.Errorf("failed to load kubeconfig from KUBECONFIG_DATA: %w", err)
 		}
-		// Build REST config from the loaded config
-		clientConfig := clientcmd.NewDefaultClientConfig(*configObj, &clientcmd.ConfigOverrides{})
-		config, err := clientConfig.ClientConfig()
-		if err != nil {
-			return nil, fmt.Errorf("failed to build REST config from KUBECONFIG_DATA: %w", err)
-		}
-		return config, nil
+		return &ConfigSource{kubeConfig: cfg, mode: "KUBECONFIG_DATA"}, nil
 	}
 
 	// Method 2: API server URL and token from environment variables
@@ -82,7 +174,6 @@ func BuildKubernetesConfig(kubeconfigPath string) (*rest.Config, error) {
 			},
 		}
 
-		// Set CA certificate if provided
 		if caCert := os.Getenv("KUBERNETES_CA_CERT"); caCert != "" {
 			config.TLSClientConfig.CAData = []byte(caCert)
 		} else if caCertPath := os.Getenv("KUBERNETES_CA_CERT_PATH"); caCertPath != "" {
@@ -93,19 +184,17 @@ func BuildKubernetesConfig(kubeconfigPath string) (*rest.Config, error) {
 			config.TLSClientConfig.CAData = caCertData
 		}
 
-		return config, nil
+		return &ConfigSource{fixedConfig: config, mode: "KUBERNETES_SERVER"}, nil
 	}
 
 	// Method 3: In-cluster authentication (service account token)
-	// Check if we're running inside a Kubernetes cluster
 	serviceAccountTokenPath := "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	if _, err := os.Stat(serviceAccountTokenPath); err == nil {
-		// We're in a cluster, use in-cluster config
 		config, err := rest.InClusterConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create in-cluster config: %w", err)
 		}
-		return config, nil
+		return &ConfigSource{fixedConfig: config, mode: "in-cluster"}, nil
 	}
 
 	// Method 4: Kubeconfig file path (provided or default)
@@ -118,28 +207,74 @@ func BuildKubernetesConfig(kubeconfigPath string) (*rest.Config, error) {
 		kubeconfig = filepath.Join(home, ".kube", "config")
 	}
 
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	cfg, err := clientcmd.LoadFromFile(kubeconfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Kubernetes configuration: %w", err)
+		return nil, fmt.Errorf("failed to load kubeconfig from %s: %w", kubeconfig, err)
 	}
-
-	return config, nil
+	return &ConfigSource{kubeConfig: cfg, kubeconfigPath: kubeconfig, mode: "kubeconfig file"}, nil
 }
 
-// NewClient creates a new Kubernetes client.
-// It initializes the standard clientset, dynamic client, discovery client,
-// and metrics client using multiple authentication methods:
-// 1. Kubeconfig content from KUBECONFIG_DATA environment variable
-// 2. API server URL and token from KUBERNETES_SERVER and KUBERNETES_TOKEN environment variables
-// 3. In-cluster authentication (service account token)
-// 4. Kubeconfig file path (provided or default ~/.kube/config)
-// If kubeconfigPath is empty, it will try to auto-detect the authentication method.
+// BuildKubernetesConfig builds a Kubernetes REST config using the
+// kubeconfig's current-context (or the single endpoint exposed by the
+// selected non-file auth method).
+//
+// It is kept for backward compatibility; callers that need to pick a
+// specific kubeconfig context should use LoadKubeconfigSource directly
+// or BuildKubernetesConfigForContext.
+func BuildKubernetesConfig(kubeconfigPath string) (*rest.Config, error) {
+	return BuildKubernetesConfigForContext(kubeconfigPath, "")
+}
+
+// BuildKubernetesConfigForContext builds a Kubernetes REST config for
+// the given kubeconfig context name. An empty contextName falls back to
+// the kubeconfig's current-context. Returns an error if the selected
+// auth method does not support context switching.
+func BuildKubernetesConfigForContext(kubeconfigPath, contextName string) (*rest.Config, error) {
+	source, err := LoadKubeconfigSource(kubeconfigPath)
+	if err != nil {
+		return nil, err
+	}
+	return source.RESTConfigFor(contextName)
+}
+
+// NewClient creates a new Kubernetes client bound to the kubeconfig's
+// current-context. Per-request context switching is available through
+// (*Client).ForContext.
+//
+// It initializes the standard clientset, dynamic client, discovery
+// client, and metrics client using multiple authentication methods:
+//  1. Kubeconfig content from KUBECONFIG_DATA environment variable
+//  2. API server URL and token from KUBERNETES_SERVER and KUBERNETES_TOKEN environment variables
+//  3. In-cluster authentication (service account token)
+//  4. Kubeconfig file path (provided or default ~/.kube/config)
+//
+// If kubeconfigPath is empty, it will try to auto-detect the
+// authentication method.
 func NewClient(kubeconfigPath string) (*Client, error) {
-	config, err := BuildKubernetesConfig(kubeconfigPath)
+	source, err := LoadKubeconfigSource(kubeconfigPath)
 	if err != nil {
 		return nil, err
 	}
 
+	config, err := source.RESTConfigFor("")
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := buildClient(config)
+	if err != nil {
+		return nil, err
+	}
+
+	client.source = source
+	client.subClients = make(map[string]*Client)
+	return client, nil
+}
+
+// buildClient creates the low-level Kubernetes clients (clientset,
+// dynamic, discovery, metrics) from a rest.Config, without wiring any
+// multi-context machinery.
+func buildClient(config *rest.Config) (*Client, error) {
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
@@ -155,7 +290,6 @@ func NewClient(kubeconfigPath string) (*Client, error) {
 		return nil, fmt.Errorf("failed to create discovery client: %w", err)
 	}
 
-	// Initialize metrics client
 	metricsClient, err := metricsclientset.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics client: %w", err)
@@ -165,10 +299,84 @@ func NewClient(kubeconfigPath string) (*Client, error) {
 		clientset:        clientset,
 		dynamicClient:    dynamicClient,
 		discoveryClient:  discoveryClient,
-		metricsClientset: metricsClient, // Assign metrics client
+		metricsClientset: metricsClient,
 		restConfig:       config,
 		apiResourceCache: make(map[string]*schema.GroupVersionResource),
 	}, nil
+}
+
+// ForContext returns a Client bound to the requested kubeconfig
+// context. An empty name returns the root client (kubeconfig's
+// current-context or the single endpoint exposed by non-kubeconfig auth
+// modes). Sub-clients are cached on the root for reuse.
+func (c *Client) ForContext(name string) (*Client, error) {
+	root := c.rootClient()
+	if name == "" {
+		return root, nil
+	}
+
+	root.subLock.RLock()
+	if sub, ok := root.subClients[name]; ok {
+		root.subLock.RUnlock()
+		return sub, nil
+	}
+	root.subLock.RUnlock()
+
+	if root.source == nil {
+		return nil, fmt.Errorf("kubeconfig source is not initialized; cannot switch context")
+	}
+
+	cfg, err := root.source.RESTConfigFor(name)
+	if err != nil {
+		return nil, err
+	}
+
+	sub, err := buildClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	sub.contextName = name
+	sub.source = root.source
+	sub.root = root
+
+	root.subLock.Lock()
+	defer root.subLock.Unlock()
+	if existing, ok := root.subClients[name]; ok {
+		return existing, nil
+	}
+	root.subClients[name] = sub
+	return sub, nil
+}
+
+// ListContexts returns the sorted list of available kubeconfig contexts
+// and the name of the current-context. See ConfigSource.Contexts for
+// the behavior on single-endpoint auth modes.
+func (c *Client) ListContexts() ([]string, string, error) {
+	root := c.rootClient()
+	if root.source == nil {
+		return nil, "", fmt.Errorf("kubeconfig source is not initialized")
+	}
+	return root.source.Contexts()
+}
+
+// ContextName returns the kubeconfig context this client is bound to,
+// or the empty string when bound to the kubeconfig's current-context
+// (or to a single-endpoint auth mode).
+func (c *Client) ContextName() string { return c.contextName }
+
+// Source returns the shared kubeconfig source for this client tree.
+// May be nil on clients that were not produced by NewClient.
+func (c *Client) Source() *ConfigSource { return c.rootClient().source }
+
+// RESTConfig returns the rest.Config the client is using.
+func (c *Client) RESTConfig() *rest.Config { return c.restConfig }
+
+// rootClient returns the root client that owns the sub-client cache.
+func (c *Client) rootClient() *Client {
+	if c.root != nil {
+		return c.root
+	}
+	return c
 }
 
 // GetAPIResources retrieves all API resource types in the cluster.

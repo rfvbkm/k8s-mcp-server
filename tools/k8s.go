@@ -5,6 +5,32 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// contextParamDescription is the shared description of the optional
+// `context` parameter that every Kubernetes/Helm tool accepts to pick a
+// kubeconfig context per call.
+const contextParamDescription = "Kubeconfig context to target. Optional; falls back to the KUBERNETES_CONTEXT env var, then to the kubeconfig's current-context. Use the listContexts tool to discover available contexts. Not supported with KUBERNETES_SERVER/TOKEN or in-cluster authentication."
+
+// withContextParam returns the standard optional `context` parameter
+// applied to a tool definition.
+func withContextParam() mcp.ToolOption {
+	return mcp.WithString("context", mcp.Description(contextParamDescription))
+}
+
+// ListContextsTool creates a tool that lists available kubeconfig
+// contexts together with the current-context.
+func ListContextsTool() mcp.Tool {
+	return mcp.NewTool(
+		"listContexts",
+		mcp.WithDescription("List available kubeconfig contexts the server can target, "+
+			"together with the current-context. Use the returned names as the `context` "+
+			"parameter on other tools to select where the action runs."),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			Title:        "List Kubeconfig Contexts",
+			ReadOnlyHint: mcp.ToBoolPtr(true),
+		}),
+	)
+}
+
 // GetAPIResourcesTool creates a tool for getting API resources.
 // It defines the tool's name, description, and parameters for including
 // namespace-scoped and cluster-scoped resources.
@@ -23,6 +49,7 @@ func GetAPIResourcesTool() mcp.Tool {
 			"The function is designed to be used as a handler for the mcp tool"),
 		mcp.WithBoolean("includeNamespaceScoped", mcp.Description("Include namespace scoped resources")),
 		mcp.WithBoolean("includeClusterScoped", mcp.Description("Include cluster scoped resources")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Get API Resources",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -42,6 +69,7 @@ func ListResourcesTool() mcp.Tool {
 		mcp.WithString("namespace", mcp.Description("The namespace to list resources in")),
 		mcp.WithString("labelSelector", mcp.Description("A label selector to filter resources")),
 		mcp.WithString("fieldSelector", mcp.Description("A field selector to filter resources")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "List Resources",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -59,6 +87,7 @@ func GetResourcesTool() mcp.Tool {
 		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to get")),
 		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource to get")),
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Get Resource",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -76,6 +105,7 @@ func DescribeResourcesTool() mcp.Tool {
 		mcp.WithString("Kind", mcp.Required(), mcp.Description("The type of resource to describe")),
 		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource to describe")),
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Describe Resource",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -93,6 +123,7 @@ func GetPodsLogsTools() mcp.Tool {
 		mcp.WithString("Name", mcp.Required(), mcp.Description("The name of the pod to get logs from")),
 		mcp.WithString("containerName", mcp.Description("The name of the container to get logs from")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("The namespace of the pod")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Get Pod Logs",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -107,6 +138,7 @@ func GetNodeMetricsTools() mcp.Tool {
 		"getNodeMetrics",
 		mcp.WithDescription("Get resource usage of a specific node in the Kubernetes cluster"),
 		mcp.WithString("Name", mcp.Required(), mcp.Description("The name of the node to get resource usage from")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Get Node Metrics",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -123,6 +155,7 @@ func GetPodMetricsTool() mcp.Tool {
 		mcp.WithDescription("Get CPU and Memory metrics for a specific pod"),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("The namespace of the pod")),
 		mcp.WithString("podName", mcp.Required(), mcp.Description("The name of the pod")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Get Pod Metrics",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -139,6 +172,7 @@ func GetEventsTool() mcp.Tool {
 		mcp.WithDescription("Get events in the Kubernetes cluster"),
 		mcp.WithString("namespace", mcp.Description("The namespace to get events from")),
 		mcp.WithString("labelSelector", mcp.Description("A label selector to filter events")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Get Events",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -154,6 +188,7 @@ func CreateOrUpdateResourceJSONTool() mcp.Tool {
 		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to create")),
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
 		mcp.WithString("manifest", mcp.Required(), mcp.Description("The manifest of the resource to create")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Create Resource",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -169,6 +204,7 @@ func CreateOrUpdateResourceYAMLTool() mcp.Tool {
 		mcp.WithString("kind", mcp.Description("The type of resource to create (optional, will be inferred from YAML manifest if not provided)")),
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource (overrides namespace in YAML manifest if provided)")),
 		mcp.WithString("yamlManifest", mcp.Required(), mcp.Description("The YAML manifest of the resource to create or update. Must be valid Kubernetes YAML format.")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Create Resource YAML",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -184,6 +220,7 @@ func DeleteResourceTool() mcp.Tool {
 		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to delete")),
 		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource to delete")),
 		mcp.WithString("namespace", mcp.Description("The namespace of the resource")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Delete Resource",
 			DestructiveHint: mcp.ToBoolPtr(true),
@@ -198,6 +235,7 @@ func GetIngressesTool() mcp.Tool {
 		"getIngresses",
 		mcp.WithDescription("Get ingresses in the Kubernetes cluster"),
 		mcp.WithString("host", mcp.Required(), mcp.Description("The host to get ingresses from")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        "Get Ingresses",
 			ReadOnlyHint: mcp.ToBoolPtr(true),
@@ -213,6 +251,7 @@ func RolloutRestartTool() mcp.Tool {
 		mcp.WithString("kind", mcp.Required(), mcp.Description("The type of resource to restart (e.g., Deployment, DaemonSet)")),
 		mcp.WithString("name", mcp.Required(), mcp.Description("The name of the resource")),
 		mcp.WithString("namespace", mcp.Required(), mcp.Description("The namespace of the resource")),
+		withContextParam(),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:           "Rollout Restart",
 			DestructiveHint: mcp.ToBoolPtr(true),
