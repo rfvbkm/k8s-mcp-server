@@ -10,6 +10,17 @@ import (
 	"github.com/reza-gholizade/k8s-mcp-server/pkg/helm"
 )
 
+// resolveHelmClient picks the helm sub-client for the requested
+// kubeconfig context, falling back to KUBERNETES_CONTEXT and finally
+// to the kubeconfig's current-context.
+func resolveHelmClient(client *helm.Client, args map[string]interface{}) (*helm.Client, error) {
+	target, err := client.ForContext(resolveContextName(args))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve kubeconfig context: %w", err)
+	}
+	return target, nil
+}
+
 // HelmInstall returns a handler function for the helmInstall tool
 
 func HelmInstall(client *helm.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -39,7 +50,12 @@ func HelmInstall(client *helm.Client) func(ctx context.Context, request mcp.Call
 			}
 		}
 
-		release, err := client.InstallChart(ctx, namespace, releaseName, chartName, repoURL, values)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		release, err := target.InstallChart(ctx, namespace, releaseName, chartName, repoURL, values)
 		if err != nil {
 			return nil, fmt.Errorf("failed to install chart: %w", err)
 		}
@@ -80,7 +96,12 @@ func HelmUpgrade(client *helm.Client) func(ctx context.Context, request mcp.Call
 			}
 		}
 
-		release, err := client.UpgradeChart(ctx, namespace, releaseName, chartName, values)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		release, err := target.UpgradeChart(ctx, namespace, releaseName, chartName, values)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upgrade chart: %w", err)
 		}
@@ -109,7 +130,12 @@ func HelmUninstall(client *helm.Client) func(ctx context.Context, request mcp.Ca
 
 		namespace := getStringArg(args, "namespace", "default")
 
-		err = client.UninstallChart(ctx, namespace, releaseName)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		err = target.UninstallChart(ctx, namespace, releaseName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to uninstall chart: %w", err)
 		}
@@ -138,7 +164,12 @@ func HelmList(client *helm.Client) func(ctx context.Context, request mcp.CallToo
 
 		namespace := getStringArg(args, "namespace", "")
 
-		releases, err := client.ListReleases(ctx, namespace)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		releases, err := target.ListReleases(ctx, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list releases: %w", err)
 		}
@@ -167,7 +198,12 @@ func HelmGet(client *helm.Client) func(ctx context.Context, request mcp.CallTool
 
 		namespace := getStringArg(args, "namespace", "default")
 
-		release, err := client.GetRelease(ctx, namespace, releaseName)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		release, err := target.GetRelease(ctx, namespace, releaseName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get release: %w", err)
 		}
@@ -196,7 +232,12 @@ func HelmHistory(client *helm.Client) func(ctx context.Context, request mcp.Call
 
 		namespace := getStringArg(args, "namespace", "default")
 
-		history, err := client.GetReleaseHistory(ctx, namespace, releaseName)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		history, err := target.GetReleaseHistory(ctx, namespace, releaseName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get release history: %w", err)
 		}
@@ -232,7 +273,12 @@ func HelmRollback(client *helm.Client) func(ctx context.Context, request mcp.Cal
 			}
 		}
 
-		err = client.RollbackRelease(ctx, namespace, releaseName, revision)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		err = target.RollbackRelease(ctx, namespace, releaseName, revision)
 		if err != nil {
 			return nil, fmt.Errorf("failed to rollback release: %w", err)
 		}
@@ -270,7 +316,12 @@ func HelmRepoAdd(client *helm.Client) func(ctx context.Context, request mcp.Call
 			return nil, err
 		}
 
-		err = client.HelmRepoAdd(ctx, repoName, repoURL)
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		err = target.HelmRepoAdd(ctx, repoName, repoURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add repository: %w", err)
 		}
@@ -291,7 +342,17 @@ func HelmRepoAdd(client *helm.Client) func(ctx context.Context, request mcp.Call
 
 func HelmRepoList(client *helm.Client) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		repos, err := client.HelmRepoList(ctx)
+		args, ok := request.Params.Arguments.(map[string]interface{})
+		if !ok {
+			args = map[string]interface{}{}
+		}
+
+		target, err := resolveHelmClient(client, args)
+		if err != nil {
+			return nil, err
+		}
+
+		repos, err := target.HelmRepoList(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list repositories: %w", err)
 		}

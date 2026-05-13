@@ -222,6 +222,16 @@ export KUBECONFIG=/path/to/your/kubeconfig
 
 **Note:** The server automatically detects which authentication method to use based on the available environment variables and file system. You don't need to explicitly configure the authentication method - it will use the first available method in the priority order listed above.
 
+### Kubeconfig contexts (per-request cluster selection)
+
+When authentication is backed by a kubeconfig (a file, `KUBECONFIG`, or `KUBECONFIG_DATA`), you can target a specific **context** on each tool call:
+
+- Optional parameter `context` (string) on every Kubernetes and Helm tool: the kubeconfig context name to use for that call only.
+- If `context` is omitted, the server uses the `KUBERNETES_CONTEXT` environment variable when set; otherwise it uses the kubeconfig **current-context**.
+- Tool `listContexts` returns `contexts` (sorted names), `currentContext`, and metadata such as `authMode` and `supportsContexts`. Use it to discover valid `context` values.
+
+**Limitations:** If you authenticate with `KUBERNETES_SERVER` / `KUBERNETES_TOKEN` or in-cluster service account credentials, there is only a single API endpoint. Context switching is not supported; `listContexts` reports a single synthetic entry, and a non-empty `context` parameter will return an error.
+
 #### Read-Only Mode
 
 The server supports a read-only mode that disables all write operations, providing a safer way to explore and monitor your Kubernetes cluster without the risk of making changes.
@@ -283,7 +293,7 @@ You can selectively disable entire categories of tools using these flags:
 
 **Note:** You cannot use both `--no-k8s` and `--no-helm` together, as this would result in no available tools. The server will exit with an error if both flags are provided.
 
-When `--no-k8s` is enabled, all Kubernetes tools are disabled:
+When `--no-k8s` is enabled, Kubernetes resource tools are disabled, but `listContexts` remains available so you can still inspect kubeconfig contexts:
 - `getAPIResources`, `listResources`, `getResource`, `describeResource`
 - `getPodsLogs`, `getNodeMetrics`, `getPodMetrics`, `getEvents`
 - `createResource` (if not in read-only mode)
@@ -449,13 +459,37 @@ curl -f http://localhost:8080/
 
 ### Available Tools
 
-#### 1. `getAPIResources`
+Most tools accept an optional string parameter **`context`**: the kubeconfig context to use for that call. If omitted, `KUBERNETES_CONTEXT` is used when set; otherwise the kubeconfig current-context applies. See [Kubeconfig contexts](#kubeconfig-contexts-per-request-cluster-selection).
+
+#### 1. `listContexts`
+
+Lists kubeconfig contexts the server can target and the default current-context.
+
+**Parameters:** none.
+
+**Response fields (JSON):** `contexts`, `currentContext`, and when available `authMode`, `supportsContexts`, `kubeconfigPath`.
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "listContexts",
+    "arguments": {}
+  }
+}
+```
+
+#### 2. `getAPIResources`
 
 Retrieves all available API resources in the Kubernetes cluster.
 
 **Parameters:**
 - `includeNamespaceScoped` (boolean, optional): Whether to include namespace-scoped resources (defaults to true).
 - `includeClusterScoped` (boolean, optional): Whether to include cluster-scoped resources (defaults to true).
+- `context` (string, optional): Kubeconfig context for this request.
 
 **Example:**
 ```json
@@ -467,13 +501,14 @@ Retrieves all available API resources in the Kubernetes cluster.
     "name": "getAPIResources",
     "arguments": {
       "includeNamespaceScoped": true,
-      "includeClusterScoped": true
+      "includeClusterScoped": true,
+      "context": "my-prod-cluster"
     }
   }
 }
 ```
 
-#### 2. `listResources`
+#### 3. `listResources`
 
 Lists all instances of a specific resource type.
 
@@ -499,7 +534,7 @@ Lists all instances of a specific resource type.
 }
 ```
 
-#### 3. `getResource`
+#### 4. `getResource`
 
 Retrieves detailed information about a specific resource.
 
@@ -525,7 +560,7 @@ Retrieves detailed information about a specific resource.
 }
 ```
 
-#### 4. `describeResource`
+#### 5. `describeResource`
 
 Describes a resource in the Kubernetes cluster, similar to `kubectl describe`.
 
@@ -551,7 +586,7 @@ Describes a resource in the Kubernetes cluster, similar to `kubectl describe`.
 }
 ```
 
-#### 5. `getPodsLogs`
+#### 6. `getPodsLogs`
 
 Retrieves the logs of a specific pod.
 
@@ -579,7 +614,7 @@ Retrieves the logs of a specific pod.
 }
 ```
 
-#### 6. `getNodeMetrics`
+#### 7. `getNodeMetrics`
 
 Retrieves resource usage metrics for a specific node.
 
@@ -601,7 +636,7 @@ Retrieves resource usage metrics for a specific node.
 }
 ```
 
-#### 7. `getPodMetrics`
+#### 8. `getPodMetrics`
 
 Retrieves CPU and Memory metrics for a specific pod.
 
@@ -625,7 +660,7 @@ Retrieves CPU and Memory metrics for a specific pod.
 }
 ```
 
-#### 8. `getEvents`
+#### 9. `getEvents`
 
 Retrieves events for a specific namespace or resource.
 
@@ -666,7 +701,7 @@ Retrieves events for a specific namespace or resource.
 }
 ```
 
-#### 9. `createOrUpdateResource`
+#### 10. `createOrUpdateResource`
 
 Creates a new resource or updates an existing one from a JSON manifest.
 
@@ -691,7 +726,7 @@ Creates a new resource or updates an existing one from a JSON manifest.
 }
 ```
 
-#### 10. `createOrUpdateResourceYAML`
+#### 11. `createOrUpdateResourceYAML`
 
 Creates a new resource or updates an existing one from a YAML manifest. This tool is specifically optimized for YAML input and provides better error handling for YAML parsing issues.
 
@@ -716,7 +751,7 @@ Creates a new resource or updates an existing one from a YAML manifest. This too
 }
 ```
 
-#### 11. `rolloutRestart`
+#### 12. `rolloutRestart`
 
 Triggers a rolling restart of a Kubernetes resource that supports spec.template.metadata.annotations. This includes Deployment, DaemonSet, StatefulSet, Job, and similar resources.
 
@@ -758,7 +793,7 @@ Triggers a rolling restart of a Kubernetes resource that supports spec.template.
 }
 ```
 
-#### 12. `deleteResource`
+#### 13. `deleteResource`
 
 Deletes a specific resource from the Kubernetes cluster.
 
@@ -784,7 +819,7 @@ Deletes a specific resource from the Kubernetes cluster.
 }
 ```
 
-#### 13. `getIngresses`
+#### 14. `getIngresses`
 
 Retrieves ingress resources from the Kubernetes cluster.
 You can filter ingresses by host. If no host is provided, all ingresses are returned.
@@ -809,7 +844,7 @@ You can filter ingresses by host. If no host is provided, all ingresses are retu
 
 ### Helm Operations
 
-#### 14. `helmInstall`
+#### 15. `helmInstall`
 
 Install a Helm chart to the Kubernetes cluster.
 
@@ -844,7 +879,7 @@ Install a Helm chart to the Kubernetes cluster.
 }
 ```
 
-#### 15. `helmUpgrade`
+#### 16. `helmUpgrade`
 
 Upgrade an existing Helm release.
 
@@ -878,23 +913,23 @@ Upgrade an existing Helm release.
 }
 ```
 
-#### 16. `helmList`
+#### 17. `helmList`
 
 List all Helm releases in the cluster or a specific namespace.
 
-#### 17. `helmGet`
+#### 18. `helmGet`
 
 Get details of a specific Helm release.
 
-#### 18. `helmHistory`
+#### 19. `helmHistory`
 
 Get the history of a Helm release.
 
-#### 19. `helmRollback`
+#### 20. `helmRollback`
 
 Rollback a Helm release to a previous revision.
 
-#### 20. `helmUninstall`
+#### 21. `helmUninstall`
 
 Uninstall a Helm release from the Kubernetes cluster.
 

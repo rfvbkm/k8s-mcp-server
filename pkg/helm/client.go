@@ -22,16 +22,34 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/reza-gholizade/k8s-mcp-server/pkg/k8s"
 )
 
-// Client wraps Helm operations
+// Client wraps Helm operations. A root Client (returned by NewClient)
+// owns a kubeconfig source and a cache of per-context sub-clients
+// produced via ForContext.
 type Client struct {
 	settings         *cli.EnvSettings
 	restConfig       *rest.Config
 	k8sClient        kubernetes.Interface
 	restClientGetter genericclioptions.RESTClientGetter
+
+	// contextName is the kubeconfig context this client is bound to.
+	// Empty means current-context (or N/A for single-endpoint auth).
+	contextName string
+
+	// source holds the kubeconfig source shared between root and
+	// sub-clients. Set only via NewClient.
+	source *k8s.ConfigSource
+
+	// root back-points to the owning root client; nil on the root.
+	root *Client
+
+	// subClients caches per-context Clients. Populated on the root only.
+	subClients map[string]*Client
+	subLock    sync.RWMutex
 }
 
 // customRESTClientGetter is a custom RESTClientGetter that uses a pre-built rest.Config
@@ -96,36 +114,61 @@ func (c *customClientConfig) ConfigAccess() clientcmd.ConfigAccess {
 	return nil
 }
 
-// NewClient creates a new Helm client.
+// NewClient creates a new Helm client bound to the kubeconfig's
+// current-context. Per-request context switching is available through
+// (*Client).ForContext.
+//
 // It uses the same authentication methods as the Kubernetes client:
-// 1. Kubeconfig content from KUBECONFIG_DATA environment variable
-// 2. API server URL and token from KUBERNETES_SERVER and KUBERNETES_TOKEN environment variables
-// 3. In-cluster authentication (service account token)
-// 4. Kubeconfig file path (provided or default ~/.kube/config)
+//  1. Kubeconfig content from KUBECONFIG_DATA environment variable
+//  2. API server URL and token from KUBERNETES_SERVER and KUBERNETES_TOKEN environment variables
+//  3. In-cluster authentication (service account token)
+//  4. Kubeconfig file path (provided or default ~/.kube/config)
 func NewClient(kubeconfig string) (*Client, error) {
+	source, err := k8s.LoadKubeconfigSource(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load kubeconfig source: %w", err)
+	}
+
+	restConfig, err := source.RESTConfigFor("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to build REST config: %w", err)
+	}
+
+	settingsKubeConfig := kubeconfig
+	if settingsKubeConfig == "" {
+		if envPath := os.Getenv("KUBECONFIG"); envPath != "" {
+			settingsKubeConfig = envPath
+		} else if srcPath := source.KubeconfigPath(); srcPath != "" {
+			settingsKubeConfig = srcPath
+		}
+	}
+
+	client, err := buildHelmClient(restConfig, settingsKubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	client.source = source
+	client.subClients = make(map[string]*Client)
+	return client, nil
+}
+
+// buildHelmClient creates the low-level Helm pieces (settings,
+// rest client getter, kubernetes clientset) for a given rest.Config.
+// It does not wire any multi-context machinery.
+func buildHelmClient(restConfig *rest.Config, settingsKubeConfig string) (*Client, error) {
 	settings := cli.New()
 
-	// Get Kubernetes REST config using the shared config builder
-	restConfig, err := k8s.BuildKubernetesConfig(kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Kubernetes config: %w", err)
-	}
-
-	// Create a custom RESTClientGetter that uses our pre-built restConfig
-	// This ensures Helm uses the same authentication method (KUBECONFIG_DATA, 
-	// KUBERNETES_SERVER/TOKEN, in-cluster, etc.) instead of trying to read from
-	// settings.KubeConfig which may not be set or may point to a different config.
+	// Use a custom RESTClientGetter that returns our pre-built restConfig.
+	// This ensures Helm uses the same authentication method
+	// (KUBECONFIG_DATA, KUBERNETES_SERVER/TOKEN, in-cluster, etc.)
+	// instead of trying to read from settings.KubeConfig.
 	restClientGetter := &customRESTClientGetter{restConfig: restConfig}
 
-	// Set kubeconfig path in settings if provided (for Helm's internal use in other contexts)
-	// Note: This is mainly for compatibility, but Helm operations will use restClientGetter
-	if kubeconfig != "" {
-		settings.KubeConfig = kubeconfig
-	} else if kubeconfigEnv := os.Getenv("KUBECONFIG"); kubeconfigEnv != "" {
-		settings.KubeConfig = kubeconfigEnv
+	if settingsKubeConfig != "" {
+		settings.KubeConfig = settingsKubeConfig
 	}
 
-	// Create Kubernetes client
 	k8sClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
@@ -137,6 +180,74 @@ func NewClient(kubeconfig string) (*Client, error) {
 		k8sClient:        k8sClient,
 		restClientGetter: restClientGetter,
 	}, nil
+}
+
+// ForContext returns a Helm Client bound to the requested kubeconfig
+// context. An empty name returns the root client. Sub-clients are
+// cached on the root for reuse.
+func (c *Client) ForContext(name string) (*Client, error) {
+	root := c.rootClient()
+	if name == "" {
+		return root, nil
+	}
+
+	root.subLock.RLock()
+	if sub, ok := root.subClients[name]; ok {
+		root.subLock.RUnlock()
+		return sub, nil
+	}
+	root.subLock.RUnlock()
+
+	if root.source == nil {
+		return nil, fmt.Errorf("kubeconfig source is not initialized; cannot switch context")
+	}
+
+	cfg, err := root.source.RESTConfigFor(name)
+	if err != nil {
+		return nil, err
+	}
+
+	settingsKubeConfig := ""
+	if root.settings != nil {
+		settingsKubeConfig = root.settings.KubeConfig
+	}
+
+	sub, err := buildHelmClient(cfg, settingsKubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	sub.contextName = name
+	sub.source = root.source
+	sub.root = root
+
+	root.subLock.Lock()
+	defer root.subLock.Unlock()
+	if existing, ok := root.subClients[name]; ok {
+		return existing, nil
+	}
+	root.subClients[name] = sub
+	return sub, nil
+}
+
+// ListContexts returns the sorted list of available kubeconfig contexts
+// and the name of the current-context.
+func (c *Client) ListContexts() ([]string, string, error) {
+	root := c.rootClient()
+	if root.source == nil {
+		return nil, "", fmt.Errorf("kubeconfig source is not initialized")
+	}
+	return root.source.Contexts()
+}
+
+// ContextName returns the kubeconfig context this client is bound to.
+func (c *Client) ContextName() string { return c.contextName }
+
+// rootClient returns the root client that owns the sub-client cache.
+func (c *Client) rootClient() *Client {
+	if c.root != nil {
+		return c.root
+	}
+	return c
 }
 
 func (c *Client) InstallChart(ctx context.Context, namespace, releaseName, chartName, repoURL string, values map[string]interface{}) (*release.Release, error) {

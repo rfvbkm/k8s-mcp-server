@@ -79,6 +79,11 @@ func main() {
 		return
 	}
 
+	// Kubeconfig context discovery is always available, even when the
+	// rest of the Kubernetes tools are disabled, so callers can still
+	// learn which contexts the server can target.
+	s.AddTool(tools.ListContextsTool(), handlers.ListContexts(client))
+
 	// Register Kubernetes tools
 	if !noK8s {
 		s.AddTool(tools.GetAPIResourcesTool(), handlers.GetAPIResources(client))
